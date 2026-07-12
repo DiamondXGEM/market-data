@@ -1,7 +1,20 @@
 {
   "iran": {
     "usd": 182500,
-    "gold18": 17717810
+    "usd_change": 1200,
+
+    "gold18": 17717810,
+    "gold18_change": -84500
   },
+
+  "crypto": {
+    "btc_usd": 116250,
+    "eth_usd": 3895
+  },
+
+  "calendar": {
+    "occasion": "روز قلم"
+  },
+
   "updated": "2026-07-12 20:15:00"
 }
