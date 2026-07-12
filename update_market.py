@@ -91,6 +91,41 @@ def main():
 
     btc, btc_change = get_bitcoin()
 
+    old_usd = usd
+    old_gold = gold18
+
+    try:
+
+        with open(
+            "market.json",
+            "r",
+            encoding="utf-8"
+        ) as f:
+
+            old = json.load(f)
+
+        old_usd = old.get(
+            "iran",
+            {}
+        ).get(
+            "usd",
+            usd
+        )
+
+        old_gold = old.get(
+            "iran",
+            {}
+        ).get(
+            "gold18",
+            gold18
+        )
+
+    except Exception:
+        pass
+
+    usd_change = usd - old_usd
+    gold18_change = gold18 - old_gold
+
     now = datetime.now(
         ZoneInfo("Asia/Tehran")
     )
@@ -100,10 +135,10 @@ def main():
         "iran": {
 
             "usd": usd,
-            "usd_change": 0,
+            "usd_change": usd_change,
 
             "gold18": gold18,
-            "gold18_change": 0
+            "gold18_change": gold18_change
         },
 
         "crypto": {
