@@ -1,0 +1,43 @@
+name: Update Market
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get Market Data
+        run: |
+          python - << 'EOF'
+          import json
+          import requests
+          from datetime import datetime
+
+          # فعلاً تست
+          data = {
+              "usd": 182500,
+              "gold18": 17717810,
+              "updated": datetime.utcnow().isoformat()
+          }
+
+          with open("market.json","w",encoding="utf-8") as f:
+              json.dump(data,f,ensure_ascii=False,indent=2)
+          EOF
+
+      - name: Commit
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add market.json
+          git diff --cached --quiet || git commit -m "Update market"
+          git push
