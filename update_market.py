@@ -1,16 +1,10 @@
-import os
 import json
 import requests
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
 
-API_KEY = os.getenv("70907a9ff24bb63da4640a3a")
-
-URL = (
-    f"https://v6.exchangerate-api.com/v6/"
-    f"{API_KEY}/latest/USD"
-)
+BRS_URL = "https://brsapi.ir/Api/Market/Gold_Currency.php"
 
 BTC_URL = (
     "https://api.coingecko.com/api/v3/simple/price"
@@ -20,31 +14,59 @@ BTC_URL = (
 )
 
 
-def get_dollar_price():
+def get_market():
 
     try:
 
-        r = requests.get(URL, timeout=15)
+        r = requests.get(
+            BRS_URL,
+            timeout=20
+        )
+
         data = r.json()
 
-        rate = data["conversion_rates"]["IRR"]
+        usd = 0
+        gold18 = 0
 
-        return int(rate / 10)
+        for item in data:
+
+            name = str(
+                item.get("name", "")
+            )
+
+            if "دلار" in name and usd == 0:
+                usd = int(item["price"])
+
+            if (
+                "طلای 18" in name
+                or
+                "طلای ۱۸" in name
+            ):
+                gold18 = int(item["price"])
+
+        return usd, gold18
 
     except Exception as e:
 
-        print("DOLLAR ERROR:", e)
-        return None
+        print("MARKET ERROR:", e)
+
+        return None, None
 
 
 def get_bitcoin():
 
     try:
 
-        r = requests.get(BTC_URL, timeout=20)
+        r = requests.get(
+            BTC_URL,
+            timeout=20
+        )
+
         data = r.json()
 
-        price = int(data["bitcoin"]["usd"])
+        price = int(
+            data["bitcoin"]["usd"]
+        )
 
         change = round(
             data["bitcoin"]["usd_24h_change"],
@@ -62,12 +84,12 @@ def get_bitcoin():
 
 def main():
 
-    dollar = get_dollar_price()
+    usd, gold18 = get_market()
 
-    if dollar is None:
+    if usd is None:
         return
 
-    btc_price, btc_change = get_bitcoin()
+    btc, btc_change = get_bitcoin()
 
     now = datetime.now(
         ZoneInfo("Asia/Tehran")
@@ -77,16 +99,16 @@ def main():
 
         "iran": {
 
-            "usd": dollar,
+            "usd": usd,
             "usd_change": 0,
 
-            "gold18": 0,
+            "gold18": gold18,
             "gold18_change": 0
         },
 
         "crypto": {
 
-            "btc": btc_price,
+            "btc": btc,
             "btc_change": btc_change
         },
 
