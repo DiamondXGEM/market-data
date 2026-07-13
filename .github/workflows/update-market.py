@@ -11,13 +11,13 @@ BTC_URL = (
     "&vs_currencies=usd"
     "&include_24hr_change=true"
 )
-
+ث
 
 def get_market():
     try:
         r = requests.get(BRS_URL, timeout=20)
         data = r.json()
-
+.
         usd = 0
         gold18 = 0
 
