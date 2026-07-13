@@ -1,6 +1,7 @@
 import requests
 
-API_KEY = "70907a9ff24bb63da4640a3a"
+EXCHANGE_API_KEY = "70907a9ff24bb63da4640a3a"
+BRS_API_KEY = "BhDCtRpVCPifhVaWtXMSeuBWBuEQxLHu"
 
 headers = {
     "User-Agent": (
@@ -11,10 +12,11 @@ headers = {
     "Accept": "application/json"
 }
 
+
 print("===== USD =====")
 
 usd = requests.get(
-    f"https://v6.exchangerate-api.com/v6/{API_KEY}/latest/USD",
+    f"https://v6.exchangerate-api.com/v6/{EXCHANGE_API_KEY}/latest/USD",
     timeout=20
 )
 
@@ -38,9 +40,12 @@ print("\n===== GOLD =====")
 
 gold = requests.get(
     "https://brsapi.ir/Api/Market/Gold_Currency.php",
+    params={
+        "key": BRS_API_KEY
+    },
     headers=headers,
     timeout=20
 )
 
 print(gold.status_code)
-print(gold.text[:500])
+print(gold.text[:1000])
