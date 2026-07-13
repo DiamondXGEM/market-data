@@ -2,7 +2,7 @@ name: Update Market
 
 on:
   schedule:
-    - cron: "0 * * * *"   # هر یک ساعت
+    - cron: "0 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -15,6 +15,12 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
+      - name: Show Files
+        run: |
+          pwd
+          ls -la
+          find . -maxdepth 2 -type f
 
       - name: Setup Python
         uses: actions/setup-python@v5
