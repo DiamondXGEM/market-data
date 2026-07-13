@@ -1,97 +1,123 @@
-      - name: Update Market
-        run: |
-          python << EOF
-          import json
-          import requests
-          from datetime import datetime
+import json
+import requests
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
-          headers = {
-              "User-Agent": "Mozilla/5.0"
-          }
+BRS_URL = "https://brsapi.ir/Api/Market/Gold_Currency.php"
 
-          # ==========================
-          # ایران (دلار و طلا)
-          # ==========================
-
-          market_url = "https://brsapi.ir/Api/Market/Gold_Currency.php"
-
-          r = requests.get(
-              market_url,
-              headers=headers,
-              timeout=20
-          )
-
-          data = r.json()
-
-          usd_iran = 0
-          gold18 = 0
-
-          for item in data:
-              name = str(item.get("name", ""))
-
-              if "دلار" in name and usd_iran == 0:
-                  usd_iran = item["price"]
-
-              if "طلای 18" in name or "طلای ۱۸" in name:
-                  gold18 = item["price"]
+BTC_URL = (
+    "https://api.coingecko.com/api/v3/simple/price"
+    "?ids=bitcoin"
+    "&vs_currencies=usd"
+    "&include_24hr_change=true"
+)
 
 
-          # ==========================
-          # Exchange Rate API
-          # ==========================
+def get_market():
+    try:
+        r = requests.get(BRS_URL, timeout=20)
+        data = r.json()
 
-          api_key = "70907a9ff24bb63da4640a3a"
+        usd = 0
+        gold18 = 0
 
-          fx_url = (
-              f"https://v6.exchangerate-api.com/v6/"
-              f"{api_key}/latest/USD"
-          )
+        for item in data:
+            name = str(item.get("name", ""))
 
-          fx = requests.get(
-              fx_url,
-              timeout=20
-          ).json()
+            if "دلار" in name and usd == 0:
+                usd = int(item["price"])
 
+            if "طلای 18" in name or "طلای ۱۸" in name:
+                gold18 = int(item["price"])
 
-          rates = fx.get(
-              "conversion_rates",
-              {}
-          )
+        return usd, gold18
 
-
-          out = {
-
-              "iran": {
-                  "usd": usd_iran,
-                  "gold18": gold18
-              },
-
-              "global": {
-                  "USD": 1,
-                  "EUR": rates.get("EUR"),
-                  "GBP": rates.get("GBP"),
-                  "TRY": rates.get("TRY"),
-                  "AED": rates.get("AED"),
-                  "RUB": rates.get("RUB")
-              },
-
-              "updated": datetime.now().strftime(
-                  "%Y-%m-%d %H:%M:%S"
-              )
-          }
+    except Exception as e:
+        print("MARKET ERROR:", e)
+        return None, None
 
 
-          with open(
-              "market.json",
-              "w",
-              encoding="utf8"
-          ) as f:
+def get_bitcoin():
+    try:
+        r = requests.get(BTC_URL, timeout=20)
+        data = r.json()
 
-              json.dump(
-                  out,
-                  f,
-                  ensure_ascii=False,
-                  indent=2
-              )
+        price = int(data["bitcoin"]["usd"])
+        change = round(data["bitcoin"]["usd_24h_change"], 2)
 
-          EOF
+        return price, change
+
+    except Exception as e:
+        print("BTC ERROR:", e)
+        return 0, 0
+
+
+def main():
+    usd, gold18 = get_market()
+
+    if usd is None:
+        return
+
+    btc, btc_change = get_bitcoin()
+
+    old_usd = usd
+    old_gold = gold18
+
+    try:
+        with open(
+            "market.json",
+            "r",
+            encoding="utf-8"
+        ) as f:
+
+            old = json.load(f)
+
+        old_usd = old.get("iran", {}).get("usd", usd)
+        old_gold = old.get("iran", {}).get("gold18", gold18)
+
+    except Exception:
+        pass
+
+    usd_change = usd - old_usd
+    gold18_change = gold18 - old_gold
+
+    now = datetime.now(
+        ZoneInfo("Asia/Tehran")
+    )
+
+    output = {
+        "iran": {
+            "usd": usd,
+            "usd_change": usd_change,
+            "gold18": gold18,
+            "gold18_change": gold18_change
+        },
+
+        "crypto": {
+            "btc": btc,
+            "btc_change": btc_change
+        },
+
+        "updated": now.strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+    }
+
+    with open(
+        "market.json",
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        json.dump(
+            output,
+            f,
+            ensure_ascii=False,
+            indent=4
+        )
+
+    print("✅ MARKET UPDATED")
+
+
+if __name__ == "__main__":
+    main()
