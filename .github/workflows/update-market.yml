@@ -1,24 +1,13 @@
-name: Update Market
-on:
-  workflow_dispatch:
+import json
+import requests
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
-jobs:
-  update:
-    runs-on: ubuntu-latest
+BRS_URL = "https://brsapi.ir/Api/Market/Gold_Currency.php"
 
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - run: |
-          pwd
-          ls -la
-
-      - run: |
-          python --version
-
-      - run: |
-          python update_market.py
+BTC_URL = (
+    "https://api.coingecko.com/api/v3/simple/price"
+    "?ids=bitcoin"
+    "&vs_currencies=usd"
+    "&include_24hr_change=true"
+)
