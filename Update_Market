@@ -1,5 +1,4 @@
 name: Update Market
-
 on:
   schedule:
     - cron: "0 * * * *"
