@@ -1,16 +1,16 @@
 {
-  "iran": {
-    "usd": 182500,
-    "usd_change": 0,
+    "iran": {
+        "usd": 180605,
+        "usd_change": -1895,
 
-    "gold18": 17717810,
-    "gold18_change": 0
-  },
+        "gold18": 17900000,
+        "gold18_change": 182190
+    },
 
-  "crypto": {
-    "btc": 116352,
-    "btc_change": 1.42
-  },
+    "crypto": {
+        "btc": 112400,
+        "btc_change": 1.39
+    },
 
-  "updated": "2026-07-12 20:15:00"
+    "updated": "2026-07-13 20:04:00"
 }
