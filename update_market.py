@@ -1,38 +1,88 @@
-name: Update Market
+import json
+from datetime import datetime
 
-on:
-  workflow_dispatch:
-  schedule:
-    - cron: "*/30 * * * *"
+import requests
 
-permissions:
-  contents: write
+API_KEY = "70907a9ff24bb63da4640a3a"
 
-jobs:
-  update:
-    runs-on: ubuntu-latest
+# ======================
+# USD
+# ======================
 
-    steps:
-      - uses: actions/checkout@v4
+usd = requests.get(
+    f"https://v6.exchangerate-api.com/v6/{API_KEY}/latest/USD",
+    timeout=20
+).json()
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install packages
-        run: pip install requests
-
-      - name: Run script
-        run: python update_market.py
-
-      - name: Commit changes
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add market.json
-
-          git diff --cached --quiet || (
-            git commit -m "Auto update market"
-            git push
+usd_price = int(
+    usd["conversion_rates"]["IRR"] / 10
 )
+
+# ======================
+# BTC
+# ======================
+
+btc = requests.get(
+    "https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT",
+    timeout=20
+).json()
+
+btc_price = round(
+    float(btc["lastPrice"]),
+    2
+)
+
+btc_change = round(
+    float(btc["priceChangePercent"]),
+    2
+)
+
+# ======================
+# GOLD
+# ======================
+
+gold = requests.get(
+    "https://brsapi.ir/Api/Market/Gold_Currency.php",
+    timeout=20
+).json()
+
+gold18 = 0
+gold_change = 0
+
+for item in gold:
+    if item.get("symbol") == "IR_GOLD_18K":
+        gold18 = int(item["price"])
+        gold_change = float(item.get("change_percent", 0))
+        break
+
+# ======================
+# SAVE
+# ======================
+
+data = {
+    "iran": {
+        "usd": usd_price,
+        "usd_change": 0,
+        "gold18": gold18,
+        "gold18_change": gold_change
+    },
+    "crypto": {
+        "btc": btc_price,
+        "btc_change": btc_change
+    },
+    "updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+}
+
+with open(
+    "market.json",
+    "w",
+    encoding="utf-8"
+) as f:
+    json.dump(
+        data,
+        f,
+        ensure_ascii=False,
+        indent=2
+    )
+
+print("Market Updated ✔")
