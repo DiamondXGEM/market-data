@@ -6,7 +6,7 @@ import requests
 API_KEY = "70907a9ff24bb63da4640a3a"
 
 # ======================
-# USD
+# USD (ExchangeRate API)
 # ======================
 
 usd = requests.get(
@@ -19,26 +19,30 @@ usd_price = int(
 )
 
 # ======================
-# BTC
+# BTC (CoinGecko)
 # ======================
 
 btc = requests.get(
-    "https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT",
-    timeout=20
+    "https://api.coingecko.com/api/v3/coins/bitcoin",
+    timeout=20,
+    headers={
+        "accept": "application/json",
+        "User-Agent": "market-data-bot"
+    }
 ).json()
 
 btc_price = round(
-    float(btc["lastPrice"]),
+    btc["market_data"]["current_price"]["usd"],
     2
 )
 
 btc_change = round(
-    float(btc["priceChangePercent"]),
+    btc["market_data"]["price_change_percentage_24h"],
     2
 )
 
 # ======================
-# GOLD
+# GOLD (BRS API)
 # ======================
 
 gold = requests.get(
@@ -56,7 +60,7 @@ for item in gold:
         break
 
 # ======================
-# SAVE
+# SAVE JSON
 # ======================
 
 data = {
@@ -85,4 +89,4 @@ with open(
         indent=2
     )
 
-print("Market Updated ✔")
+print("✅ Market Updated")
