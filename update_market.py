@@ -21,7 +21,7 @@ BRS_API_KEY = os.getenv(
 
 
 GITHUB_TOKEN = os.getenv(
-    "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"
+    "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"
 )
 
 
