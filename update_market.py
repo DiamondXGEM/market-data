@@ -23,8 +23,7 @@ BRS_API_KEY = os.getenv(
 GITHUB_TOKEN = os.getenv(
     "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"
 )
-print("ENV TEST:")
-print(os.environ.get("GITHUB_TOKEN"))
+print("TOKEN EXISTS:", bool(GITHUB_TOKEN))
 
 DATA_FILE = "market_data.json"
 
@@ -50,7 +49,57 @@ def load_old():
     if os.path.exists(DATA_FILE):
 
         with open(
-            DATA_FILE,
+            DATA_FIStarting Container
+
+USD: 126433
+
+BTC: 62456
+
+ENV TEST:
+
+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
+
+Market update startedStarting Container
+
+USD: 126433
+
+BTC: 62456
+
+ENV TEST:
+
+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
+
+Market update startedStarting Container
+
+USD: 126433
+
+BTC: 62456
+
+ENV TEST:
+
+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
+
+Market update startedStarting Container
+
+USD: 126433
+
+BTC: 62456
+
+ENV TEST:
+
+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
+
+Market update startedStarting Container
+
+USD: 126433
+
+BTC: 62456
+
+ENV TEST:
+
+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
+
+Market update startedLE,
             "r",
             encoding="utf-8"
         ) as f:
