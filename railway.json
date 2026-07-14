@@ -1,26 +1,6 @@
 {
-  {
   "$schema": "https://railway.app/railway.schema.json",
   "deploy": {
     "startCommand": "python update_market.py"
-  }
-}
-  "build": {
-    "builder": "RAILPACK",
-    "buildEnvironment": "V3"
-  },
-  "deploy": {
-    "runtime": "V2",
-    "numReplicas": 1,
-    "sleepApplication": false,
-    "useLegacyStacker": false,
-    "ipv6EgressEnabled": false,
-    "multiRegionConfig": {
-      "sfo": {
-        "numReplicas": 1
-      }
-    },
-    "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 10
   }
 }
