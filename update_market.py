@@ -1,6 +1,7 @@
 import requests
 import json
 import os
+import base64
 
 
 # ===============================
@@ -12,21 +13,30 @@ BRS_API_KEY = "BhDCtRpVCPifhVaWtXMSeuBWBuEQxLHu"
 
 
 # ===============================
-# SETTINGS
+# GITHUB SETTINGS
 # ===============================
 
-DATA_FILE = "market_data.json"
+GITHUB_TOKEN = "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"
+
+GITHUB_OWNER = "DiamondXGEM"
+GITHUB_REPO = "market-data"
+
+GITHUB_FILE = "market.json"
+
+
+# ===============================
+# FILE SETTINGS
+# ===============================
+
+DATA_FILE = "market.json"
 
 
 headers = {
     "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/120.0 Safari/537.36"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
     ),
     "Accept": "application/json"
 }
-
 
 
 # ===============================
@@ -47,9 +57,8 @@ def load_old():
     return {}
 
 
-
 # ===============================
-# SAVE DATA
+# SAVE LOCAL FILE
 # ===============================
 
 def save_data(data):
@@ -66,7 +75,6 @@ def save_data(data):
             ensure_ascii=False,
             indent=2
         )
-
 
 
 # ===============================
@@ -89,7 +97,6 @@ def get_usd():
 
     data = r.json()
 
-    # نرخ دلار به تومان
     usd = data["conversion_rates"]["IRR"] / 10
 
     return round(usd)
@@ -152,10 +159,7 @@ def get_gold():
     )
 
 
-    return {
-        "price": gold["price"],
-        "change": gold["change_value"]
-    }
+    return gold["price"]
 
 
 
@@ -163,10 +167,7 @@ def get_gold():
 # CHANGE
 # ===============================
 
-def calc_change(
-    current,
-    old
-):
+def calc_change(current, old):
 
     if old is None:
         return 0
@@ -176,15 +177,93 @@ def calc_change(
 
 
 # ===============================
+# GITHUB UPDATE
+# ===============================
+
+def update_github(file_content):
+
+    url = (
+        f"https://api.github.com/repos/"
+        f"{GITHUB_OWNER}/{GITHUB_REPO}/contents/{GITHUB_FILE}"
+    )
+
+
+    gh_headers = {
+        "Authorization": f"Bearer {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github+json"
+    }
+
+
+    # گرفتن SHA فایل قبلی
+
+    r = requests.get(
+        url,
+        headers=gh_headers
+    )
+
+
+    sha = None
+
+    if r.status_code == 200:
+
+        sha = r.json()["sha"]
+
+
+
+    content = base64.b64encode(
+        file_content.encode("utf-8")
+    ).decode()
+
+
+
+    payload = {
+
+        "message": "Update market data",
+
+        "content": content
+
+    }
+
+
+    if sha:
+        payload["sha"] = sha
+
+
+
+    r = requests.put(
+        url,
+        headers=gh_headers,
+        json=payload
+    )
+
+
+    r.raise_for_status()
+
+    print("✅ GitHub market.json updated")
+
+
+
+# ===============================
 # MAIN
 # ===============================
+
+print("🚀 Market update started")
+
 
 old = load_old()
 
 
 usd = get_usd()
+print("USD:", usd)
+
+
 btc = get_btc()
+print("BTC:", btc)
+
+
 gold = get_gold()
+print("GOLD:", gold)
+
 
 
 market = {
@@ -208,9 +287,9 @@ market = {
 
 
     "gold": {
-        "price": gold["price"],
+        "price": gold,
         "change": calc_change(
-            gold["price"],
+            gold,
             old.get("gold")
         )
     }
@@ -219,24 +298,24 @@ market = {
 
 
 
-save_data(
-    {
-        "usd": usd,
-        "btc": btc,
-        "gold": gold["price"]
-    }
+save_data(market)
+
+
+
+with open(
+    DATA_FILE,
+    "r",
+    encoding="utf-8"
+) as f:
+
+    github_content = f.read()
+
+
+
+update_github(
+    github_content
 )
 
 
 
-# ===============================
-# OUTPUT
-# ===============================
-
-print(
-    json.dumps(
-        market,
-        ensure_ascii=False,
-        indent=2
-    )
-)
+print("✅ DONE")
