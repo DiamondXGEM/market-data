@@ -1,4 +1,4 @@
-import requests
+https://api.coingecko.com/api/v3/simple/priceimport requests
 import json
 import os
 import base64
@@ -8,12 +8,6 @@ from datetime import datetime
 # ===============================
 # API KEYS
 # ===============================
-
-EXCHANGE_API_KEY = os.getenv(
-    "EXCHANGE_API_KEY",
-    "70907a9ff24bb63da4640a3a"
-)
-
 
 BRS_API_KEY = os.getenv(
     "BRS_API_KEY",
@@ -31,8 +25,6 @@ print(
     "Yalda EXISTS:",
     bool(GITHUB_TOKEN)
 )
-
-
 
 # ===============================
 # SETTINGS
@@ -58,8 +50,6 @@ HEADERS = {
     "Accept": "application/json"
 }
 
-
-
 # ===============================
 # LOAD OLD DATA
 # ===============================
@@ -79,43 +69,40 @@ def load_old():
     return {}
 
 
-
 # ===============================
-# USD
+# USD (BRS API)
 # ===============================
 
 def get_usd():
 
+    url = "https://brsapi.ir/Api/Market/Gold_Currency.php"
+
     try:
-
-        url = (
-            f"https://v6.exchangerate-api.com/v6/"
-            f"{EXCHANGE_API_KEY}/latest/USD"
-        )
-
 
         r = requests.get(
             url,
-            timeout=20
+            params={
+                "key": BRS_API_KEY
+            },
+            headers=HEADERS,
+            timeout=(10, 30)
         )
-
 
         r.raise_for_status()
 
         data = r.json()
 
-
-        return int(
-            data["conversion_rates"]["IRR"] / 10
+        usd = next(
+            item
+            for item in data["currency"]
+            if item["symbol"] == "USD"
         )
 
+        return int(usd["price"])
 
     except Exception as e:
 
-        print(
-            "USD ERROR:",
-            e
-        )
+        print("USD ERROR:", e)
 
         return load_old().get(
             "iran",
@@ -124,8 +111,6 @@ def get_usd():
             "usd",
             0
         )
-
-
 
 # ===============================
 # BTC
@@ -254,8 +239,6 @@ def get_gold():
 
         }
 
-
-
 # ===============================
 # CHANGE
 # ===============================
@@ -374,10 +357,6 @@ def push_github():
             "GitHub ERROR:",
             response.text
         )
-
-
-
-
 
 # ===============================
 # MAIN
