@@ -1,4 +1,4 @@
-https://api.coingecko.com/api/v3/simple/priceimport requests
+import requests
 import json
 import os
 import base64
