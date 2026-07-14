@@ -23,7 +23,8 @@ BRS_API_KEY = os.getenv(
 GITHUB_TOKEN = os.getenv(
     "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"
 )
-
+print("ENV TEST:")
+print(os.environ.get("GITHUB_TOKEN"))
 
 DATA_FILE = "market_data.json"
 
