@@ -1,7 +1,7 @@
 import requests
 import json
 import os
-import base64
+from datetime import datetime
 
 
 # ===============================
@@ -13,27 +13,17 @@ BRS_API_KEY = "BhDCtRpVCPifhVaWtXMSeuBWBuEQxLHu"
 
 
 # ===============================
-# GITHUB SETTINGS
+# SETTINGS
 # ===============================
 
-GITHUB_TOKEN = "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"
-
-GITHUB_OWNER = "DiamondXGEM"
-GITHUB_REPO = "market-data"
-
-GITHUB_FILE = "market.json"
-
-
-# ===============================
-# FILE SETTINGS
-# ===============================
-
-DATA_FILE = "market.json"
+DATA_FILE = "market_data.json"
 
 
 headers = {
     "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120 Safari/537.36"
     ),
     "Accept": "application/json"
 }
@@ -57,25 +47,6 @@ def load_old():
     return {}
 
 
-# ===============================
-# SAVE LOCAL FILE
-# ===============================
-
-def save_data(data):
-
-    with open(
-        DATA_FILE,
-        "w",
-        encoding="utf-8"
-    ) as f:
-
-        json.dump(
-            data,
-            f,
-            ensure_ascii=False,
-            indent=2
-        )
-
 
 # ===============================
 # USD
@@ -97,9 +68,10 @@ def get_usd():
 
     data = r.json()
 
-    usd = data["conversion_rates"]["IRR"] / 10
-
-    return round(usd)
+    # دلار ریال به تومان
+    return int(
+        data["conversion_rates"]["IRR"] / 10
+    )
 
 
 
@@ -115,52 +87,68 @@ def get_btc():
     )
 
     try:
+
         r = requests.get(
             url,
             headers=headers,
             timeout=20
         )
 
+
         if r.status_code == 429:
-            print("BTC API محدود شده، مقدار قبلی استفاده می‌شود")
+
+            print(
+                "BTC rate limited"
+            )
 
             old = load_old()
 
             return old.get(
+                "crypto",
+                {}
+            ).get(
                 "btc",
                 0
             )
 
+
         r.raise_for_status()
+
 
         return int(
             r.json()["bitcoin"]["usd"]
         )
 
+
     except Exception as e:
 
-        print("BTC Error:", e)
+        print(
+            "BTC error:",
+            e
+        )
 
         old = load_old()
 
         return old.get(
+            "crypto",
+            {}
+        ).get(
             "btc",
             0
         )
-print("BTC done")
+
 
 
 # ===============================
-# GOLD
+# GOLD 18K
 # ===============================
-print("Getting GOLD...")
-gold = get_gold()
-print("GOLD done:", gold)
+
 def get_gold():
 
     url = (
         "https://brsapi.ir/Api/Market/Gold_Currency.php"
     )
+
 
     r = requests.get(
         url,
@@ -171,99 +159,40 @@ def get_gold():
         timeout=20
     )
 
+
     r.raise_for_status()
+
 
     data = r.json()
 
 
-    gold = next(
+    gold18 = next(
         item
         for item in data["gold"]
         if item["symbol"] == "IR_GOLD_18K"
     )
 
 
-    return gold["price"]
+    return {
+        "price": gold18["price"],
+        "change": gold18["change_value"],
+        "percent": gold18["change_percent"],
+        "date": gold18["date"],
+        "time": gold18["time"]
+    }
 
 
 
 # ===============================
-# CHANGE
+# CHANGE CALC
 # ===============================
 
-def calc_change(current, old):
+def change(new, old):
 
     if old is None:
         return 0
 
-    return current - old
-
-
-
-# ===============================
-# GITHUB UPDATE
-# ===============================
-print("Saving JSON...")
-def update_github(file_content):
-
-    url = (
-        f"https://api.github.com/repos/"
-        f"{GITHUB_OWNER}/{GITHUB_REPO}/contents/{GITHUB_FILE}"
-    )
-
-
-    gh_headers = {
-        "Authorization": f"Bearer {GITHUB_TOKEN}",
-        "Accept": "application/vnd.github+json"
-    }
-
-
-    # گرفتن SHA فایل قبلی
-
-    r = requests.get(
-        url,
-        headers=gh_headers
-    )
-
-
-    sha = None
-
-    if r.status_code == 200:
-
-        sha = r.json()["sha"]
-
-
-
-    content = base64.b64encode(
-        file_content.encode("utf-8")
-    ).decode()
-
-
-
-    payload = {
-
-        "message": "Update market data",
-
-        "content": content
-
-    }
-
-
-    if sha:
-        payload["sha"] = sha
-
-
-
-    r = requests.put(
-        url,
-        headers=gh_headers,
-        json=payload
-    )
-
-
-    r.raise_for_status()
-
-    print("✅ GitHub market.json updated")
+    return new - old
 
 
 
@@ -271,75 +200,161 @@ def update_github(file_content):
 # MAIN
 # ===============================
 
-print("🚀 Market update started")
+print("Market update started")
 
 
 old = load_old()
 
 
-usd = get_usd()
-print("USD:", usd)
+# USD
 
+usd = get_usd()
+
+print(
+    "USD:",
+    usd
+)
+
+
+
+# BTC
 
 btc = get_btc()
-print("BTC:", btc)
+
+print(
+    "BTC:",
+    btc
+)
+
+print("BTC done")
+
+
+# GOLD
+
+print(
+    "Getting GOLD..."
+)
 
 
 gold = get_gold()
-print("GOLD:", gold)
+
+
+print(
+    "GOLD:",
+    gold["price"]
+)
+
+
+
+# ===============================
+# BUILD JSON
+# ===============================
+
+old_usd = old.get(
+    "iran",
+    {}
+).get(
+    "usd"
+)
+
+
+old_gold = old.get(
+    "iran",
+    {}
+).get(
+    "gold18"
+)
+
+
+old_btc = old.get(
+    "crypto",
+    {}
+).get(
+    "btc"
+)
 
 
 
 market = {
 
-    "usd": {
-        "price": usd,
-        "change": calc_change(
+    "iran": {
+
+        "usd": usd,
+
+        "usd_change": change(
             usd,
-            old.get("usd")
-        )
+            old_usd
+        ),
+
+
+        "gold18": gold["price"],
+
+        "gold18_change": change(
+            gold["price"],
+            old_gold
+        ),
+
+        "gold18_percent": gold["percent"]
+
     },
 
 
-    "btc": {
-        "price": btc,
-        "change": calc_change(
+    "crypto": {
+
+        "btc": btc,
+
+        "btc_change": change(
             btc,
-            old.get("btc")
+            old_btc
         )
+
     },
 
 
-    "gold": {
-        "price": gold,
-        "change": calc_change(
-            gold,
-            old.get("gold")
-        )
-    }
+    "gold_update": {
+
+        "date": gold["date"],
+
+        "time": gold["time"]
+
+    },
+
+
+    "updated": datetime.now().strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
 
 }
 
 
 
-save_data(market)
-
-
+# ===============================
+# SAVE JSON
+# ===============================
 
 with open(
     DATA_FILE,
-    "r",
+    "w",
     encoding="utf-8"
 ) as f:
 
-    github_content = f.read()
+    json.dump(
+        market,
+        f,
+        ensure_ascii=False,
+        indent=4
+    )
 
 
-
-update_github(
-    github_content
+print(
+    "JSON saved"
 )
 
 
-
-print("✅ DONE")
+print(
+    json.dumps(
+        market,
+        ensure_ascii=False,
+        indent=4
+    )
+        )
