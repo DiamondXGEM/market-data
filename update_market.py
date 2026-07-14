@@ -147,13 +147,15 @@ def get_btc():
             "btc",
             0
         )
-
+print("BTC done")
 
 
 # ===============================
 # GOLD
 # ===============================
-
+print("Getting GOLD...")
+gold = get_gold()
+print("GOLD done:", gold)
 def get_gold():
 
     url = (
@@ -201,7 +203,7 @@ def calc_change(current, old):
 # ===============================
 # GITHUB UPDATE
 # ===============================
-
+print("Saving JSON...")
 def update_github(file_content):
 
     url = (
