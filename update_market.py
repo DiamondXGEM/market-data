@@ -14,18 +14,22 @@ EXCHANGE_API_KEY = os.getenv(
     "70907a9ff24bb63da4640a3a"
 )
 
+
 BRS_API_KEY = os.getenv(
     "BRS_API_KEY",
     "BhDCtRpVCPifhVaWtXMSeuBWBuEQxLHu"
 )
 
-Yalda = os.getenv(
-    "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"
+
+# GitHub token from Railway Variables
+GITHUB_TOKEN = os.getenv(
+    "Yalda"
 )
+
 
 print(
     "Yalda EXISTS:",
-    bool(Yalda)
+    bool(GITHUB_TOKEN)
 )
 
 
@@ -36,7 +40,9 @@ print(
 
 DATA_FILE = "market.json"
 
+
 GITHUB_REPO = "DiamondXGEM/market-data"
+
 
 GITHUB_FILE = "market.json"
 
