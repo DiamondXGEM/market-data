@@ -1,5 +1,10 @@
 {
-  "$schema": "https://railway.com/railway.schema.json",
+  {
+  "$schema": "https://railway.app/railway.schema.json",
+  "deploy": {
+    "startCommand": "python update_market.py"
+  }
+}
   "build": {
     "builder": "RAILPACK",
     "buildEnvironment": "V3"
