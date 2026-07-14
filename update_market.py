@@ -19,13 +19,13 @@ BRS_API_KEY = os.getenv(
     "BhDCtRpVCPifhVaWtXMSeuBWBuEQxLHu"
 )
 
-GITHUB_TOKEN = os.getenv(
-    "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"
+Yalda = os.getenv(
+    "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"
 )
 
 print(
-    "TOKEN EXISTS:",
-    bool(GITHUB_TOKEN)
+    "Yalda EXISTS:",
+    bool(Yalda)
 )
 
 
