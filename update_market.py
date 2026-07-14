@@ -19,11 +19,15 @@ BRS_API_KEY = os.getenv(
     "BhDCtRpVCPifhVaWtXMSeuBWBuEQxLHu"
 )
 
-
 GITHUB_TOKEN = os.getenv(
-    "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"
+    "GITHUB_TOKEN"
 )
-print("TOKEN EXISTS:", bool(GITHUB_TOKEN))
+
+print(
+    "TOKEN EXISTS:",
+    bool(GITHUB_TOKEN)
+)
+
 
 DATA_FILE = "market_data.json"
 
@@ -41,7 +45,7 @@ HEADERS = {
 
 
 # ===============================
-# LOAD OLD JSON
+# LOAD OLD DATA
 # ===============================
 
 def load_old():
@@ -49,57 +53,7 @@ def load_old():
     if os.path.exists(DATA_FILE):
 
         with open(
-            DATA_FIStarting Container
-
-USD: 126433
-
-BTC: 62456
-
-ENV TEST:
-
-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
-
-Market update startedStarting Container
-
-USD: 126433
-
-BTC: 62456
-
-ENV TEST:
-
-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
-
-Market update startedStarting Container
-
-USD: 126433
-
-BTC: 62456
-
-ENV TEST:
-
-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
-
-Market update startedStarting Container
-
-USD: 126433
-
-BTC: 62456
-
-ENV TEST:
-
-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
-
-Market update startedStarting Container
-
-USD: 126433
-
-BTC: 62456
-
-ENV TEST:
-
-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
-
-Market update startedLE,
+            DATA_FILE,
             "r",
             encoding="utf-8"
         ) as f:
@@ -146,7 +100,6 @@ def get_btc():
         "?ids=bitcoin&vs_currencies=usd"
     )
 
-
     try:
 
         r = requests.get(
@@ -155,10 +108,11 @@ def get_btc():
             timeout=20
         )
 
-
         if r.status_code == 429:
 
-            print("BTC limited")
+            print(
+                "BTC rate limited"
+            )
 
             old = load_old()
 
@@ -172,7 +126,6 @@ def get_btc():
 
 
         r.raise_for_status()
-
 
         return int(
             r.json()["bitcoin"]["usd"]
@@ -226,7 +179,8 @@ def get_gold():
 
 
     gold = next(
-        x for x in data["gold"]
+        x
+        for x in data["gold"]
         if x["symbol"] == "IR_GOLD_18K"
     )
 
@@ -252,7 +206,7 @@ def calc_change(
 
 
 # ===============================
-# PUSH TO GITHUB
+# GITHUB PUSH
 # ===============================
 
 def push_github():
@@ -295,13 +249,20 @@ def push_github():
     )
 
 
-    subprocess.run(
+    commit = subprocess.run(
         [
             "git",
             "commit",
             "-m",
             "Auto market update"
-        ]
+        ],
+        capture_output=True,
+        text=True
+    )
+
+
+    print(
+        commit.stdout
     )
 
 
@@ -333,7 +294,6 @@ print(
 old = load_old()
 
 
-
 usd = get_usd()
 
 print(
@@ -342,14 +302,12 @@ print(
 )
 
 
-
 btc = get_btc()
 
 print(
     "BTC:",
     btc
 )
-
 
 
 gold = get_gold()
@@ -365,7 +323,6 @@ old_iran = old.get(
     "iran",
     {}
 )
-
 
 old_crypto = old.get(
     "crypto",
@@ -393,8 +350,7 @@ market = {
             old_iran.get("gold18")
         ),
 
-        "gold18_percent":
-            gold["change_percent"]
+        "gold18_percent": gold["change_percent"]
 
     },
 
@@ -420,10 +376,9 @@ market = {
     },
 
 
-    "updated":
-        datetime.now().strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
+    "updated": datetime.now().strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
 
 }
 
