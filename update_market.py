@@ -114,17 +114,39 @@ def get_btc():
         "?ids=bitcoin&vs_currencies=usd"
     )
 
-    r = requests.get(
-        url,
-        headers=headers,
-        timeout=20
-    )
+    try:
+        r = requests.get(
+            url,
+            headers=headers,
+            timeout=20
+        )
 
-    r.raise_for_status()
+        if r.status_code == 429:
+            print("BTC API محدود شده، مقدار قبلی استفاده می‌شود")
 
-    return int(
-        r.json()["bitcoin"]["usd"]
-    )
+            old = load_old()
+
+            return old.get(
+                "btc",
+                0
+            )
+
+        r.raise_for_status()
+
+        return int(
+            r.json()["bitcoin"]["usd"]
+        )
+
+    except Exception as e:
+
+        print("BTC Error:", e)
+
+        old = load_old()
+
+        return old.get(
+            "btc",
+            0
+        )
 
 
 
