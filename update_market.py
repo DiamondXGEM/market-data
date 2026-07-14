@@ -29,15 +29,17 @@ print(
 )
 
 
+
 # ===============================
 # SETTINGS
 # ===============================
 
-DATA_FILE = "market_data.json"
+DATA_FILE = "market.json"
 
-GITHUB_REPO = "diamondxgem/market"
+GITHUB_REPO = "DiamondXGEM/market-data"
 
-GITHUB_FILE = "data/market_data.json"
+GITHUB_FILE = "market.json"
+
 
 
 HEADERS = {
@@ -78,23 +80,44 @@ def load_old():
 
 def get_usd():
 
-    url = (
-        f"https://v6.exchangerate-api.com/v6/"
-        f"{EXCHANGE_API_KEY}/latest/USD"
-    )
+    try:
 
-    r = requests.get(
-        url,
-        timeout=20
-    )
+        url = (
+            f"https://v6.exchangerate-api.com/v6/"
+            f"{EXCHANGE_API_KEY}/latest/USD"
+        )
 
-    r.raise_for_status()
 
-    data = r.json()
+        r = requests.get(
+            url,
+            timeout=20
+        )
 
-    return int(
-        data["conversion_rates"]["IRR"] / 10
-    )
+
+        r.raise_for_status()
+
+        data = r.json()
+
+
+        return int(
+            data["conversion_rates"]["IRR"] / 10
+        )
+
+
+    except Exception as e:
+
+        print(
+            "USD ERROR:",
+            e
+        )
+
+        return load_old().get(
+            "iran",
+            {}
+        ).get(
+            "usd",
+            0
+        )
 
 
 
@@ -125,9 +148,7 @@ def get_btc():
                 "BTC rate limited"
             )
 
-            old = load_old()
-
-            return old.get(
+            return load_old().get(
                 "crypto",
                 {}
             ).get(
@@ -151,9 +172,8 @@ def get_btc():
             e
         )
 
-        old = load_old()
 
-        return old.get(
+        return load_old().get(
             "crypto",
             {}
         ).get(
@@ -174,30 +194,59 @@ def get_gold():
     )
 
 
-    r = requests.get(
-        url,
-        params={
-            "key": BRS_API_KEY
-        },
-        headers=HEADERS,
-        timeout=20
-    )
+    try:
+
+        r = requests.get(
+            url,
+            params={
+                "key": BRS_API_KEY
+            },
+            headers=HEADERS,
+            timeout=(10,30)
+        )
 
 
-    r.raise_for_status()
+        r.raise_for_status()
 
 
-    data = r.json()
+        data = r.json()
 
 
-    gold = next(
-        item
-        for item in data["gold"]
-        if item["symbol"] == "IR_GOLD_18K"
-    )
+        return next(
+            item
+            for item in data["gold"]
+            if item["symbol"] == "IR_GOLD_18K"
+        )
 
 
-    return gold
+    except Exception as e:
+
+        print(
+            "GOLD ERROR:",
+            e
+        )
+
+
+        old = load_old()
+
+
+        return {
+
+            "price": old.get(
+                "iran",
+                {}
+            ).get(
+                "gold18",
+                0
+            ),
+
+            "change_percent": 0,
+
+            "date": "",
+
+            "time": ""
+
+        }
 
 
 
@@ -213,10 +262,8 @@ def calc_change(new, old):
 
     return new - old
 
-
-
 # ===============================
-# GITHUB UPDATE
+# GITHUB API UPDATE
 # ===============================
 
 def push_github():
@@ -246,6 +293,7 @@ def push_github():
             "application/vnd.github+json"
 
     }
+
 
 
     old_file = requests.get(
@@ -291,13 +339,14 @@ def push_github():
     }
 
 
+
     if sha:
 
         payload["sha"] = sha
 
 
 
-    result = requests.put(
+    response = requests.put(
         url,
         headers=headers,
         json=payload,
@@ -305,18 +354,22 @@ def push_github():
     )
 
 
-    if result.status_code in [200,201]:
+
+    if response.status_code in [200, 201]:
 
         print(
             "GitHub updated successfully"
         )
 
+
     else:
 
         print(
-            "GitHub error:",
-            result.text
+            "GitHub ERROR:",
+            response.text
         )
+
+
 
 
 
@@ -380,6 +433,7 @@ market = {
         "usd":
             usd,
 
+
         "usd_change":
             calc_change(
                 usd,
@@ -390,14 +444,19 @@ market = {
         "gold18":
             gold["price"],
 
+
         "gold18_change":
             calc_change(
                 gold["price"],
                 old_iran.get("gold18")
             ),
 
+
         "gold18_percent":
-            gold["change_percent"]
+            gold.get(
+                "change_percent",
+                0
+            )
 
     },
 
@@ -406,6 +465,7 @@ market = {
 
         "btc":
             btc,
+
 
         "btc_change":
             calc_change(
@@ -419,10 +479,17 @@ market = {
     "gold_update": {
 
         "date":
-            gold["date"],
+            gold.get(
+                "date",
+                ""
+            ),
+
 
         "time":
-            gold["time"]
+            gold.get(
+                "time",
+                ""
+            )
 
     },
 
@@ -450,9 +517,11 @@ with open(
     )
 
 
+
 print(
     "JSON saved"
 )
+
 
 
 push_github()
