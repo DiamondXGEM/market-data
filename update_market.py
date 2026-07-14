@@ -1,6 +1,7 @@
 import requests
 import json
 import os
+import subprocess
 from datetime import datetime
 
 
@@ -8,29 +9,39 @@ from datetime import datetime
 # API KEYS
 # ===============================
 
-EXCHANGE_API_KEY = "70907a9ff24bb63da4640a3a"
-BRS_API_KEY = "BhDCtRpVCPifhVaWtXMSeuBWBuEQxLHu"
+EXCHANGE_API_KEY = os.getenv(
+    "EXCHANGE_API_KEY",
+    "70907a9ff24bb63da4640a3a"
+)
+
+BRS_API_KEY = os.getenv(
+    "BRS_API_KEY",
+    "BhDCtRpVCPifhVaWtXMSeuBWBuEQxLHu"
+)
 
 
-# ===============================
-# SETTINGS
-# ===============================
+GITHUB_TOKEN = os.getenv(
+    "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"
+)
+
 
 DATA_FILE = "market_data.json"
 
 
-headers = {
+HEADERS = {
     "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Mozilla/5.0 "
+        "(Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 "
         "Chrome/120 Safari/537.36"
     ),
     "Accept": "application/json"
 }
 
 
+
 # ===============================
-# LOAD OLD DATA
+# LOAD OLD JSON
 # ===============================
 
 def load_old():
@@ -68,7 +79,6 @@ def get_usd():
 
     data = r.json()
 
-    # دلار ریال به تومان
     return int(
         data["conversion_rates"]["IRR"] / 10
     )
@@ -86,20 +96,19 @@ def get_btc():
         "?ids=bitcoin&vs_currencies=usd"
     )
 
+
     try:
 
         r = requests.get(
             url,
-            headers=headers,
+            headers=HEADERS,
             timeout=20
         )
 
 
         if r.status_code == 429:
 
-            print(
-                "BTC rate limited"
-            )
+            print("BTC limited")
 
             old = load_old()
 
@@ -123,7 +132,7 @@ def get_btc():
     except Exception as e:
 
         print(
-            "BTC error:",
+            "BTC ERROR:",
             e
         )
 
@@ -140,7 +149,7 @@ def get_btc():
 
 
 # ===============================
-# GOLD 18K
+# GOLD
 # ===============================
 
 def get_gold():
@@ -155,7 +164,7 @@ def get_gold():
         params={
             "key": BRS_API_KEY
         },
-        headers=headers,
+        headers=HEADERS,
         timeout=20
     )
 
@@ -166,28 +175,24 @@ def get_gold():
     data = r.json()
 
 
-    gold18 = next(
-        item
-        for item in data["gold"]
-        if item["symbol"] == "IR_GOLD_18K"
+    gold = next(
+        x for x in data["gold"]
+        if x["symbol"] == "IR_GOLD_18K"
     )
 
 
-    return {
-        "price": gold18["price"],
-        "change": gold18["change_value"],
-        "percent": gold18["change_percent"],
-        "date": gold18["date"],
-        "time": gold18["time"]
-    }
+    return gold
 
 
 
 # ===============================
-# CHANGE CALC
+# CHANGE
 # ===============================
 
-def change(new, old):
+def calc_change(
+    new,
+    old
+):
 
     if old is None:
         return 0
@@ -197,16 +202,87 @@ def change(new, old):
 
 
 # ===============================
+# PUSH TO GITHUB
+# ===============================
+
+def push_github():
+
+    if not GITHUB_TOKEN:
+
+        print(
+            "No GitHub token"
+        )
+
+        return
+
+
+    subprocess.run(
+        [
+            "git",
+            "config",
+            "user.name",
+            "market-bot"
+        ]
+    )
+
+
+    subprocess.run(
+        [
+            "git",
+            "config",
+            "user.email",
+            "bot@market.local"
+        ]
+    )
+
+
+    subprocess.run(
+        [
+            "git",
+            "add",
+            DATA_FILE
+        ]
+    )
+
+
+    subprocess.run(
+        [
+            "git",
+            "commit",
+            "-m",
+            "Auto market update"
+        ]
+    )
+
+
+    subprocess.run(
+        [
+            "git",
+            "push",
+            f"https://{GITHUB_TOKEN}@github.com/diamondxgem/market.git",
+            "main"
+        ]
+    )
+
+
+    print(
+        "GitHub updated"
+    )
+
+
+
+# ===============================
 # MAIN
 # ===============================
 
-print("Market update started")
+print(
+    "Market update started"
+)
 
 
 old = load_old()
 
 
-# USD
 
 usd = get_usd()
 
@@ -217,8 +293,6 @@ print(
 
 
 
-# BTC
-
 btc = get_btc()
 
 print(
@@ -226,18 +300,9 @@ print(
     btc
 )
 
-print("BTC done")
-
-
-# GOLD
-
-print(
-    "Getting GOLD..."
-)
 
 
 gold = get_gold()
-
 
 print(
     "GOLD:",
@@ -246,31 +311,15 @@ print(
 
 
 
-# ===============================
-# BUILD JSON
-# ===============================
-
-old_usd = old.get(
+old_iran = old.get(
     "iran",
     {}
-).get(
-    "usd"
 )
 
 
-old_gold = old.get(
-    "iran",
-    {}
-).get(
-    "gold18"
-)
-
-
-old_btc = old.get(
+old_crypto = old.get(
     "crypto",
     {}
-).get(
-    "btc"
 )
 
 
@@ -281,20 +330,21 @@ market = {
 
         "usd": usd,
 
-        "usd_change": change(
+        "usd_change": calc_change(
             usd,
-            old_usd
+            old_iran.get("usd")
         ),
 
 
         "gold18": gold["price"],
 
-        "gold18_change": change(
+        "gold18_change": calc_change(
             gold["price"],
-            old_gold
+            old_iran.get("gold18")
         ),
 
-        "gold18_percent": gold["percent"]
+        "gold18_percent":
+            gold["change_percent"]
 
     },
 
@@ -303,9 +353,9 @@ market = {
 
         "btc": btc,
 
-        "btc_change": change(
+        "btc_change": calc_change(
             btc,
-            old_btc
+            old_crypto.get("btc")
         )
 
     },
@@ -320,17 +370,14 @@ market = {
     },
 
 
-    "updated": datetime.now().strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
+    "updated":
+        datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
 
 }
 
 
-
-# ===============================
-# SAVE JSON
-# ===============================
 
 with open(
     DATA_FILE,
@@ -351,10 +398,4 @@ print(
 )
 
 
-print(
-    json.dumps(
-        market,
-        ensure_ascii=False,
-        indent=4
-    )
-        )
+push_github()
