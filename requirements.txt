@@ -1,0 +1,11 @@
+requests
+aiohttp
+rubka
+aiosqlite
+rapidfuzz
+apscheduler
+orjson
+psutil
+uvloop
+jdatetime
+tzdata
