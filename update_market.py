@@ -4,27 +4,22 @@ import os
 import base64
 from datetime import datetime
 
-
 # ===============================
 # API KEYS
 # ===============================
 
-BRS_API_KEY = os.getenv(
-    "BRS_API_KEY",
-    "BhDCtRpVCPifhVaWtXMSeuBWBuEQxLHu"
-)
+BRS_API_KEY = os.getenv("BhDCtRpVCPifhVaWtXMSeuBWBuEQxLHu")
 
+if not BRS_API_KEY:
+    raise RuntimeError("BRS_API_KEY not found")
 
-# GitHub token from Railway Variables
-GITHUB_TOKEN = os.getenv(
-    "Yalda"
-)
+# Railway Variable
+GITHUB_TOKEN = os.getenv("Yalda")
 
+if not GITHUB_TOKEN:
+    raise RuntimeError("GitHub token 'Yalda' not found")
 
-print(
-    "Yalda EXISTS:",
-    bool(GITHUB_TOKEN)
-)
+print("GitHub Token: OK")
 
 # ===============================
 # SETTINGS
@@ -32,13 +27,9 @@ print(
 
 DATA_FILE = "market.json"
 
-
 GITHUB_REPO = "DiamondXGEM/market-data"
 
-
 GITHUB_FILE = "market.json"
-
-
 
 HEADERS = {
     "User-Agent": (
@@ -68,9 +59,8 @@ def load_old():
 
     return {}
 
-
 # ===============================
-# USD (BRS API)
+# USD
 # ===============================
 
 def get_usd():
@@ -81,9 +71,7 @@ def get_usd():
 
         r = requests.get(
             url,
-            params={
-                "key": BRS_API_KEY
-            },
+            params={"key": BRS_API_KEY},
             headers=HEADERS,
             timeout=(10, 30)
         )
@@ -123,7 +111,6 @@ def get_btc():
         "?ids=bitcoin&vs_currencies=usd"
     )
 
-
     try:
 
         r = requests.get(
@@ -132,12 +119,9 @@ def get_btc():
             timeout=20
         )
 
-
         if r.status_code == 429:
 
-            print(
-                "BTC rate limited"
-            )
+            print("BTC rate limited")
 
             return load_old().get(
                 "crypto",
@@ -147,22 +131,15 @@ def get_btc():
                 0
             )
 
-
         r.raise_for_status()
-
 
         return int(
             r.json()["bitcoin"]["usd"]
         )
 
-
     except Exception as e:
 
-        print(
-            "BTC ERROR:",
-            e
-        )
-
+        print("BTC ERROR:", e)
 
         return load_old().get(
             "crypto",
@@ -172,36 +149,26 @@ def get_btc():
             0
         )
 
-
-
 # ===============================
 # GOLD
 # ===============================
 
 def get_gold():
 
-    url = (
-        "https://brsapi.ir/Api/Market/Gold_Currency.php"
-    )
-
+    url = "https://brsapi.ir/Api/Market/Gold_Currency.php"
 
     try:
 
         r = requests.get(
             url,
-            params={
-                "key": BRS_API_KEY
-            },
+            params={"key": BRS_API_KEY},
             headers=HEADERS,
-            timeout=(10,30)
+            timeout=(10, 30)
         )
-
 
         r.raise_for_status()
 
-
         data = r.json()
-
 
         return next(
             item
@@ -209,34 +176,17 @@ def get_gold():
             if item["symbol"] == "IR_GOLD_18K"
         )
 
-
     except Exception as e:
 
-        print(
-            "GOLD ERROR:",
-            e
-        )
-
+        print("GOLD ERROR:", e)
 
         old = load_old()
 
-
         return {
-
-            "price": old.get(
-                "iran",
-                {}
-            ).get(
-                "gold18",
-                0
-            ),
-
+            "price": old.get("iran", {}).get("gold18", 0),
             "change_percent": 0,
-
             "date": "",
-
             "time": ""
-
         }
 
 # ===============================
@@ -246,25 +196,15 @@ def get_gold():
 def calc_change(new, old):
 
     if old is None:
-
         return 0
 
     return new - old
 
 # ===============================
-# GITHUB API UPDATE
+# GITHUB UPDATE
 # ===============================
 
 def push_github():
-
-    if not GITHUB_TOKEN:
-
-        print(
-            "No GitHub token"
-        )
-
-        return
-
 
     url = (
         f"https://api.github.com/repos/"
@@ -272,18 +212,10 @@ def push_github():
         f"{GITHUB_FILE}"
     )
 
-
     headers = {
-
-        "Authorization":
-            f"Bearer {GITHUB_TOKEN}",
-
-        "Accept":
-            "application/vnd.github+json"
-
+        "Authorization": f"Bearer {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github+json"
     }
-
-
 
     old_file = requests.get(
         url,
@@ -291,15 +223,15 @@ def push_github():
         timeout=20
     )
 
+    if old_file.status_code not in (200, 404):
+        print("GitHub GET ERROR:", old_file.status_code)
+        print(old_file.text)
+        return
 
     sha = None
 
-
     if old_file.status_code == 200:
-
         sha = old_file.json()["sha"]
-
-
 
     with open(
         DATA_FILE,
@@ -309,31 +241,15 @@ def push_github():
 
         content = f.read()
 
-
-
-    encoded = base64.b64encode(
-        content.encode("utf-8")
-    ).decode("utf-8")
-
-
-
     payload = {
-
-        "message":
-            "Auto market update",
-
-        "content":
-            encoded
-
+        "message": "Auto market update",
+        "content": base64.b64encode(
+            content.encode("utf-8")
+        ).decode("utf-8")
     }
 
-
-
     if sha:
-
         payload["sha"] = sha
-
-
 
     response = requests.put(
         url,
@@ -342,151 +258,84 @@ def push_github():
         timeout=20
     )
 
-
-
-    if response.status_code in [200, 201]:
-
-        print(
-            "GitHub updated successfully"
-        )
-
+    if response.status_code in (200, 201):
+        print("GitHub updated successfully")
 
     else:
-
-        print(
-            "GitHub ERROR:",
-            response.text
-        )
+        print("GitHub UPDATE ERROR:", response.status_code)
+        print(response.text)
 
 # ===============================
 # MAIN
 # ===============================
 
-print(
-    "Market update started"
-)
-
+print("Market update started")
 
 old = load_old()
 
-
-
 usd = get_usd()
-
-print(
-    "USD:",
-    usd
-)
-
-
+print("USD:", usd)
 
 btc = get_btc()
-
-print(
-    "BTC:",
-    btc
-)
-
-
+print("BTC:", btc)
 
 gold = get_gold()
+print("GOLD:", gold["price"])
 
-print(
-    "GOLD:",
-    gold["price"]
-)
-
-
-
-old_iran = old.get(
-    "iran",
-    {}
-)
-
-
-old_crypto = old.get(
-    "crypto",
-    {}
-)
-
-
+old_iran = old.get("iran", {})
+old_crypto = old.get("crypto", {})
 
 market = {
 
     "iran": {
 
-        "usd":
+        "usd": usd,
+
+        "usd_change": calc_change(
             usd,
+            old_iran.get("usd")
+        ),
 
+        "gold18": gold["price"],
 
-        "usd_change":
-            calc_change(
-                usd,
-                old_iran.get("usd")
-            ),
-
-
-        "gold18":
+        "gold18_change": calc_change(
             gold["price"],
+            old_iran.get("gold18")
+        ),
 
-
-        "gold18_change":
-            calc_change(
-                gold["price"],
-                old_iran.get("gold18")
-            ),
-
-
-        "gold18_percent":
-            gold.get(
-                "change_percent",
-                0
-            )
-
+        "gold18_percent": gold.get(
+            "change_percent",
+            0
+        )
     },
-
 
     "crypto": {
 
-        "btc":
+        "btc": btc,
+
+        "btc_change": calc_change(
             btc,
-
-
-        "btc_change":
-            calc_change(
-                btc,
-                old_crypto.get("btc")
-            )
-
+            old_crypto.get("btc")
+        )
     },
-
 
     "gold_update": {
 
-        "date":
-            gold.get(
-                "date",
-                ""
-            ),
+        "date": gold.get(
+            "date",
+            ""
+        ),
 
-
-        "time":
-            gold.get(
-                "time",
-                ""
-            )
-
+        "time": gold.get(
+            "time",
+            ""
+        )
     },
 
-
-    "updated":
-        datetime.now().strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
-
+    "updated": datetime.now().strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
 }
-
-
 
 with open(
     DATA_FILE,
@@ -501,12 +350,8 @@ with open(
         indent=4
     )
 
-
-
-print(
-    "JSON saved"
-)
-
-
+print("JSON saved successfully")
 
 push_github()
+
+print("Market update completed")
