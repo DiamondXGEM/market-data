@@ -13,7 +13,6 @@ BRS_API_KEY = os.getenv("BhDCtRpVCPifhVaWtXMSeuBWBuEQxLHu")
 if not BRS_API_KEY:
     raise RuntimeError("BRS_API_KEY not found")
 
-# Railway Variable
 GITHUB_TOKEN = os.getenv("Yalda")
 
 if not GITHUB_TOKEN:
@@ -60,12 +59,14 @@ def load_old():
     return {}
 
 # ===============================
-# USD
+# BRS MARKET (USD + GOLD)
 # ===============================
 
-def get_usd():
+def get_brs_market():
 
     url = "https://brsapi.ir/Api/Market/Gold_Currency.php"
+
+    old = load_old()
 
     try:
 
@@ -86,19 +87,48 @@ def get_usd():
             if item["symbol"] == "USD"
         )
 
-        return int(usd["price"])
+        gold = next(
+            item
+            for item in data["gold"]
+            if item["symbol"] == "IR_GOLD_18K"
+        )
+
+        return {
+            "usd": int(usd["price"]),
+            "gold": gold
+        }
 
     except Exception as e:
 
-        print("USD ERROR:", e)
+        print("BRS ERROR:", e)
 
-        return load_old().get(
-            "iran",
-            {}
-        ).get(
-            "usd",
-            0
-        )
+        return {
+
+            "usd": old.get(
+                "iran",
+                {}
+            ).get(
+                "usd",
+                0
+            ),
+
+            "gold": {
+
+                "price": old.get(
+                    "iran",
+                    {}
+                ).get(
+                    "gold18",
+                    0
+                ),
+
+                "change_percent": 0,
+
+                "date": "",
+
+                "time": ""
+            }
+        }
 
 # ===============================
 # BTC
@@ -150,44 +180,53 @@ def get_btc():
         )
 
 # ===============================
-# GOLD
+# USDT
 # ===============================
 
-def get_gold():
+def get_usdt():
 
-    url = "https://brsapi.ir/Api/Market/Gold_Currency.php"
+    url = (
+        "https://api.coingecko.com/api/v3/simple/price"
+        "?ids=tether&vs_currencies=irr"
+    )
 
     try:
 
         r = requests.get(
             url,
-            params={"key": BRS_API_KEY},
             headers=HEADERS,
-            timeout=(10, 30)
+            timeout=20
         )
+
+        if r.status_code == 429:
+
+            print("USDT rate limited")
+
+            return load_old().get(
+                "crypto",
+                {}
+            ).get(
+                "usdt",
+                0
+            )
 
         r.raise_for_status()
 
-        data = r.json()
-
-        return next(
-            item
-            for item in data["gold"]
-            if item["symbol"] == "IR_GOLD_18K"
+        return int(
+            r.json()["tether"]["irr"] / 10
         )
 
     except Exception as e:
 
-        print("GOLD ERROR:", e)
+        print("USDT ERROR:", e)
 
-        old = load_old()
-
-        return {
-            "price": old.get("iran", {}).get("gold18", 0),
-            "change_percent": 0,
-            "date": "",
-            "time": ""
-        }
+        return load_old().get(
+            "crypto",
+            {}
+        ).get(
+            "usdt",
+            0
+        )
 
 # ===============================
 # CHANGE
@@ -260,12 +299,10 @@ def push_github():
 
     if response.status_code in (200, 201):
         print("GitHub updated successfully")
-
     else:
         print("GitHub UPDATE ERROR:", response.status_code)
         print(response.text)
-
-# ===============================
+        # ===============================
 # MAIN
 # ===============================
 
@@ -273,17 +310,53 @@ print("Market update started")
 
 old = load_old()
 
-usd = get_usd()
+old_iran = old.get(
+    "iran",
+    {}
+)
+
+old_crypto = old.get(
+    "crypto",
+    {}
+)
+
+
+# ===============================
+# BRS
+# ===============================
+
+brs = get_brs_market()
+
+usd = brs["usd"]
+
+gold = brs["gold"]
+
+gold_price = int(
+    gold["price"]
+)
+
 print("USD:", usd)
 
+print("GOLD:", gold_price)
+
+
+# ===============================
+# CRYPTO
+# ===============================
+
 btc = get_btc()
+
 print("BTC:", btc)
 
-gold = get_gold()
-print("GOLD:", gold["price"])
 
-old_iran = old.get("iran", {})
-old_crypto = old.get("crypto", {})
+usdt = get_usdt()
+
+print("USDT:", usdt)
+
+
+# ===============================
+# CREATE MARKET JSON
+# ===============================
 
 market = {
 
@@ -296,18 +369,22 @@ market = {
             old_iran.get("usd")
         ),
 
-        "gold18": gold["price"],
+
+        "gold18": gold_price,
 
         "gold18_change": calc_change(
-            gold["price"],
+            gold_price,
             old_iran.get("gold18")
         ),
+
 
         "gold18_percent": gold.get(
             "change_percent",
             0
         )
+
     },
+
 
     "crypto": {
 
@@ -316,8 +393,18 @@ market = {
         "btc_change": calc_change(
             btc,
             old_crypto.get("btc")
+        ),
+
+
+        "usdt": usdt,
+
+        "usdt_change": calc_change(
+            usdt,
+            old_crypto.get("usdt")
         )
+
     },
+
 
     "gold_update": {
 
@@ -326,16 +413,25 @@ market = {
             ""
         ),
 
+
         "time": gold.get(
             "time",
             ""
         )
+
     },
+
 
     "updated": datetime.now().strftime(
         "%Y-%m-%d %H:%M:%S"
     )
+
 }
+
+
+# ===============================
+# SAVE JSON
+# ===============================
 
 with open(
     DATA_FILE,
@@ -350,8 +446,15 @@ with open(
         indent=4
     )
 
+
 print("JSON saved successfully")
 
+
+# ===============================
+# GITHUB
+# ===============================
+
 push_github()
+
 
 print("Market update completed")
