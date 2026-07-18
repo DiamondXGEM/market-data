@@ -8,7 +8,9 @@
     },
     "crypto": {
         "btc": 64128,
-        "btc_change": 0
+        "btc_change": 0,
+        "usdt": 188600,
+        "usdt_change": 0
     },
     "gold_update": {
         "date": "1405/04/25",
