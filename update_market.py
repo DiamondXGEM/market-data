@@ -9,7 +9,7 @@ from datetime import datetime
 # API KEYS
 # ===============================
 
-BRS_API_KEY = os.getenv("BhDCtRpVCPifhVaWtXMSeuBWBuEQxLHu")
+BRS_API_KEY = os.getenv("BRS_API_KEY")
 
 if not BRS_API_KEY:
     raise RuntimeError("BRS_API_KEY not found")
