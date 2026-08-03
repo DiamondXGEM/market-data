@@ -7,8 +7,8 @@
         "gold18_percent": 0
     },
     "crypto": {
-        "btc": 63634,
-        "btc_change": -41,
+        "btc": 63650,
+        "btc_change": 16,
         "usdt": 0,
         "usdt_change": 0
     },
@@ -16,5 +16,5 @@
         "date": "",
         "time": ""
     },
-    "updated": "2026-08-03 15:31:11"
+    "updated": "2026-08-03 15:32:21"
 }
