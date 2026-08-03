@@ -8,11 +8,13 @@
     },
     "crypto": {
         "btc": 63849,
-        "btc_change": 1354
+        "btc_change": 20,
+        "usdt": 0,
+        "usdt_change": 0
     },
     "gold_update": {
         "date": "",
         "time": ""
     },
-    "updated": "2026-08-03 15:01:32"
+    "updated": "2026-08-03 15:01:44"
 }
