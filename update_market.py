@@ -64,8 +64,8 @@ def load_old():
 
 def get_brs_market():
 
-    url = "https://brsapi.ir/Api/Market/Gold_Currency.php"
-
+    url = "https://Api.BrsApi.ir/Api/Market/Gold_Currency.php"
+    
     old = load_old()
 
     try:
