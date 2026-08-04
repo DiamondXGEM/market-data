@@ -8,7 +8,7 @@
     },
     "crypto": {
         "btc": 63779,
-        "btc_change": 3,
+        "btc_change": 0,
         "usdt": 0,
         "usdt_change": 0
     },
@@ -16,5 +16,5 @@
         "date": "",
         "time": ""
     },
-    "updated": "2026-08-04 12:33:19"
+    "updated": "2026-08-04 12:33:41"
 }
