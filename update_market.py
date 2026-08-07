@@ -64,54 +64,94 @@ def load_old():
 
 def get_brs_market():
 
-    url = "https://Api.BrsApi.ir/Api/Market/Gold_Currency.php"
-    
+    url = "https://api.brsapi.ir/Api/Market/Gold_Currency.php"
+
     old = load_old()
 
     try:
 
         r = requests.get(
             url,
-            params={"key": BRS_API_KEY},
+            params={
+                "key": BRS_API_KEY
+            },
             headers=HEADERS,
-            timeout=(10, 30)
+            timeout=(20, 60)
         )
+
+        print("BRS STATUS:", r.status_code)
 
         r.raise_for_status()
 
         data = r.json()
 
+        currency = data.get("currency", [])
+        gold_list = data.get("gold", [])
+
         usd = next(
-            item
-            for item in data["currency"]
-            if item["symbol"] == "USD"
+            (
+                item for item in currency
+                if item.get("symbol") == "USD"
+            ),
+            None
         )
 
         usdt = next(
-            item
-            for item in data["currency"]
-            if item["symbol"] == "USDT"
+            (
+                item for item in currency
+                if item.get("symbol") == "USDT"
+            ),
+            None
         )
 
         gold = next(
-            item
-            for item in data["gold"]
-            if item["symbol"] == "IR_GOLD_18K"
+            (
+                item for item in gold_list
+                if item.get("symbol") == "IR_GOLD_18K"
+            ),
+            None
         )
+
+
+        if not usd or not usdt or not gold:
+            raise Exception("BRS DATA FORMAT ERROR")
+
 
         return {
 
-            "usd": int(usd["price"]),
+            "usd": int(usd.get("price", 0)),
 
-            "usdt": int(usdt["price"]),
+            "usdt": int(usdt.get("price", 0)),
 
-            "gold": gold
+            "gold": {
+
+                "price": int(
+                    gold.get("price", 0)
+                ),
+
+                "change_percent": gold.get(
+                    "change_percent",
+                    0
+                ),
+
+                "date": gold.get(
+                    "date",
+                    ""
+                ),
+
+                "time": gold.get(
+                    "time",
+                    ""
+                )
+            }
 
         }
 
+
     except Exception as e:
 
-        print("BRS ERROR:", e)
+        print("BRS ERROR:", repr(e))
+
 
         return {
 
@@ -123,6 +163,7 @@ def get_brs_market():
                 0
             ),
 
+
             "usdt": old.get(
                 "crypto",
                 {}
@@ -130,6 +171,7 @@ def get_brs_market():
                 "usdt",
                 0
             ),
+
 
             "gold": {
 
