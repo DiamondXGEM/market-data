@@ -7,6 +7,7 @@
   "deploy": {
     "runtime": "V2",
     "numReplicas": 1,
+    "cronSchedule": "0 */8 * * *",
     "startCommand": "python update_market.py",
     "sleepApplication": false,
     "useLegacyStacker": false,
@@ -16,8 +17,6 @@
         "numReplicas": 1
       }
     },
-    "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 10
+    "restartPolicyType": "NEVER"
   }
-
 }
