@@ -2,6 +2,7 @@ import requests
 import json
 import os
 import base64
+import time
 from datetime import datetime
 
 
@@ -9,18 +10,28 @@ from datetime import datetime
 # API KEYS
 # ============================================================
 
+NAVASAN_API_KEY = os.getenv("NAVASAN_API_KEY")
 BRS_API_KEY = os.getenv("BRS_API_KEY")
-
-if not BRS_API_KEY:
-    raise RuntimeError("BRS_API_KEY not found")
-
 GITHUB_TOKEN = os.getenv("Yalda")
 
-if not GITHUB_TOKEN:
-    raise RuntimeError("GitHub token 'Yalda' not found")
 
+if not NAVASAN_API_KEY:
+    raise RuntimeError(
+        "NAVASAN_API_KEY not found"
+    )
+
+if not GITHUB_TOKEN:
+    raise RuntimeError(
+        "GitHub token 'Yalda' not found"
+    )
+
+
+print("Navasan API Key: OK")
+print(
+    "BRS API Key:",
+    "OK" if BRS_API_KEY else "NOT SET - BRS backup disabled"
+)
 print("GitHub Token: OK")
-print("BRS API Key: OK")
 
 
 # ============================================================
@@ -32,7 +43,30 @@ DATA_FILE = "market.json"
 GITHUB_REPO = "DiamondXGEM/market-data"
 GITHUB_FILE = "market.json"
 
-BRS_URL = "https://api.brsapi.ir/Market/Gold_Currency.php"
+
+# ------------------------------------------------------------
+# NAVASAN
+# طبق مستندات رسمی Navasan
+# ------------------------------------------------------------
+
+NAVASAN_URL = (
+    "http://api.navasan.tech/latest/"
+)
+
+
+# ------------------------------------------------------------
+# BRS BACKUP
+# ------------------------------------------------------------
+
+BRS_URL = (
+    "https://api.brsapi.ir/"
+    "Market/Gold_Currency.php"
+)
+
+
+# ------------------------------------------------------------
+# COINGECKO BACKUP
+# ------------------------------------------------------------
 
 BTC_URL = (
     "https://api.coingecko.com/api/v3/simple/price"
@@ -41,10 +75,20 @@ BTC_URL = (
 
 
 # ============================================================
+# RETRY SETTINGS
+# ============================================================
+
+MAX_RETRIES = 3
+
+RETRY_DELAY = 3
+
+
+# ============================================================
 # HEADERS
 # ============================================================
 
 HEADERS = {
+
     "User-Agent": (
         "Mozilla/5.0 "
         "(Windows NT 10.0; Win64; x64) "
@@ -52,7 +96,9 @@ HEADERS = {
         "(KHTML, like Gecko) "
         "Chrome/120 Safari/537.36"
     ),
-    "Accept": "application/json",
+
+    "Accept": "application/json"
+
 }
 
 
@@ -75,12 +121,15 @@ def load_old():
 
             data = json.load(f)
 
-            if isinstance(data, dict):
-                return data
+        if isinstance(data, dict):
+            return data
 
     except Exception as e:
 
-        print("OLD DATA ERROR:", repr(e))
+        print(
+            "OLD DATA ERROR:",
+            repr(e)
+        )
 
     return {}
 
@@ -107,7 +156,6 @@ def safe_int(value, default=0):
         if not text:
             return default
 
-        # حذف جداکننده‌های معمول
         text = (
             text
             .replace(",", "")
@@ -123,50 +171,297 @@ def safe_int(value, default=0):
 
 
 # ============================================================
-# FIND ITEM BY SYMBOL
+# SAFE FLOAT
 # ============================================================
 
-def find_symbol(items, symbols):
+def safe_float(value, default=0):
 
-    if not isinstance(items, list):
+    if value is None:
+        return default
+
+    try:
+
+        text = str(value).strip()
+
+        if not text:
+            return default
+
+        text = (
+            text
+            .replace(",", "")
+            .replace("٬", "")
+            .replace(" ", "")
+        )
+
+        return float(text)
+
+    except Exception:
+
+        return default
+
+
+# ============================================================
+# CALCULATE PERCENT
+# ============================================================
+
+def calculate_percent(
+    value,
+    change
+):
+
+    value = safe_float(
+        value,
+        0
+    )
+
+    change = safe_float(
+        change,
+        0
+    )
+
+    if value <= 0:
+        return 0
+
+    previous = value - change
+
+    if previous <= 0:
+        return 0
+
+    try:
+
+        percent = (
+            change / previous
+        ) * 100
+
+        return round(
+            percent,
+            2
+        )
+
+    except Exception:
+
+        return 0
+
+
+# ============================================================
+# FIND BRS SYMBOL
+# ============================================================
+
+def find_symbol(
+    items,
+    symbols
+):
+
+    if not isinstance(
+        items,
+        list
+    ):
         return None
 
-    if isinstance(symbols, str):
-        symbols = [symbols]
+    if isinstance(
+        symbols,
+        str
+    ):
+        symbols = [
+            symbols
+        ]
 
     wanted = {
-        str(x).strip().upper()
+        str(x)
+        .strip()
+        .upper()
         for x in symbols
     }
 
     for item in items:
 
-        if not isinstance(item, dict):
+        if not isinstance(
+            item,
+            dict
+        ):
             continue
 
-        symbol = item.get("symbol")
+        symbol = item.get(
+            "symbol"
+        )
 
         if symbol is None:
             continue
 
-        if str(symbol).strip().upper() in wanted:
+        if (
+            str(symbol)
+            .strip()
+            .upper()
+            in wanted
+        ):
+
             return item
 
     return None
 
 
 # ============================================================
-# DEBUG BRS RESPONSE
+# NAVASAN REQUEST
 # ============================================================
 
-def print_brs_response(data):
+def request_navasan():
 
     print("")
-    print("=" * 60)
-    print("BRS RAW RESPONSE")
-    print("=" * 60)
+    print(
+        "Connecting to Navasan..."
+    )
+
+    for attempt in range(
+        1,
+        MAX_RETRIES + 1
+    ):
+
+        try:
+
+            print(
+                f"Navasan attempt "
+                f"{attempt}/{MAX_RETRIES}"
+            )
+
+            response = requests.get(
+
+                NAVASAN_URL,
+
+                params={
+                    "api_key":
+                        NAVASAN_API_KEY
+                },
+
+                headers=HEADERS,
+
+                timeout=(
+                    10,
+                    30
+                )
+            )
+
+            print(
+                "NAVASAN STATUS:",
+                response.status_code
+            )
+
+            print(
+                "NAVASAN CONTENT TYPE:",
+                response.headers.get(
+                    "Content-Type",
+                    ""
+                )
+            )
+
+            response.raise_for_status()
+
+            data = response.json()
+
+            if not isinstance(
+                data,
+                dict
+            ):
+
+                raise Exception(
+                    "Navasan response is not JSON object"
+                )
+
+            return data
+
+        except requests.exceptions.Timeout as e:
+
+            print(
+                "NAVASAN TIMEOUT:",
+                repr(e)
+            )
+
+        except requests.exceptions.ConnectionError as e:
+
+            print(
+                "NAVASAN CONNECTION ERROR:",
+                repr(e)
+            )
+
+        except requests.exceptions.RequestException as e:
+
+            print(
+                "NAVASAN REQUEST ERROR:",
+                repr(e)
+            )
+
+            # خطاهای 401/429/503 معمولاً با Retry
+            # در دفعات بعد هم ارزش امتحان دارند.
+
+        except Exception as e:
+
+            print(
+                "NAVASAN ERROR:",
+                repr(e)
+            )
+
+        if attempt < MAX_RETRIES:
+
+            print(
+                f"Retrying Navasan "
+                f"in {RETRY_DELAY} seconds..."
+            )
+
+            time.sleep(
+                RETRY_DELAY
+            )
+
+    return None
+
+
+# ============================================================
+# NAVASAN MARKET
+# USD + GOLD + BTC
+# ============================================================
+
+def get_navasan_market():
+
+    old = load_old()
+
+    old_usd = safe_int(
+        old
+        .get("iran", {})
+        .get("usd", 0)
+    )
+
+    old_gold = safe_int(
+        old
+        .get("iran", {})
+        .get("gold18", 0)
+    )
+
+    old_btc = safe_int(
+        old
+        .get("crypto", {})
+        .get("btc", 0)
+    )
 
     try:
+
+        data = request_navasan()
+
+        if data is None:
+
+            raise Exception(
+                "Navasan unavailable"
+            )
+
+        print("")
+        print(
+            "=" * 60
+        )
+
+        print(
+            "NAVASAN RAW RESPONSE"
+        )
+
+        print(
+            "=" * 60
+        )
 
         print(
             json.dumps(
@@ -176,504 +471,674 @@ def print_brs_response(data):
             )
         )
 
-    except Exception:
-
-        print(repr(data))
-
-    print("=" * 60)
-    print("")
-
-
-# ============================================================
-# BRS MARKET
-# USD + USDT + GOLD
-# ============================================================
-
-def get_brs_market():
-
-    old = load_old()
-
-    old_usd = (
-        old
-        .get("iran", {})
-        .get("usd", 0)
-    )
-
-    old_usdt = (
-        old
-        .get("crypto", {})
-        .get("usdt", 0)
-    )
-
-    old_gold = (
-        old
-        .get("iran", {})
-        .get("gold18", 0)
-    )
-
-    try:
-
-        print("")
-        print("Connecting to BRS...")
-        print("BRS URL:", BRS_URL)
-
-        response = requests.get(
-            BRS_URL,
-            params={
-                "key": BRS_API_KEY
-            },
-            headers=HEADERS,
-            timeout=(20, 60)
-        )
-
         print(
-            "BRS STATUS:",
-            response.status_code
+            "=" * 60
         )
-
-        print(
-            "BRS CONTENT TYPE:",
-            response.headers.get(
-                "Content-Type",
-                ""
-            )
-        )
-
-        response.raise_for_status()
-
-        # ----------------------------------------------------
-        # JSON PARSE
-        # ----------------------------------------------------
-
-        try:
-
-            data = response.json()
-
-        except Exception as e:
-
-            print(
-                "BRS JSON PARSE ERROR:",
-                repr(e)
-            )
-
-            print(
-                "BRS TEXT RESPONSE:",
-                response.text[:5000]
-            )
-
-            raise Exception(
-                "BRS returned invalid JSON"
-            )
-
-        # ----------------------------------------------------
-        # SHOW RAW RESPONSE
-        # ----------------------------------------------------
-
-        print_brs_response(data)
-
-        if not isinstance(data, dict):
-
-            raise Exception(
-                "BRS response is not a JSON object"
-            )
-
-        # ----------------------------------------------------
-        # POSSIBLE DATA LOCATIONS
-        # ----------------------------------------------------
-
-        # حالت معمول
-        currency = data.get(
-            "currency",
-            []
-        )
-
-        gold_list = data.get(
-            "gold",
-            []
-        )
-
-        # بعضی APIها اطلاعات را داخل data می‌گذارند
-        if (
-            not isinstance(currency, list)
-            and isinstance(
-                data.get("data"),
-                dict
-            )
-        ):
-
-            nested = data["data"]
-
-            currency = nested.get(
-                "currency",
-                []
-            )
-
-            gold_list = nested.get(
-                "gold",
-                []
-            )
-
-        # ----------------------------------------------------
-        # DEBUG
-        # ----------------------------------------------------
-
-        print(
-            "BRS currency items:",
-            len(currency)
-            if isinstance(currency, list)
-            else "NOT LIST"
-        )
-
-        print(
-            "BRS gold items:",
-            len(gold_list)
-            if isinstance(gold_list, list)
-            else "NOT LIST"
-        )
-
-        # ----------------------------------------------------
-        # FIND USD
-        # ----------------------------------------------------
-
-        usd = find_symbol(
-            currency,
-            [
-                "USD",
-                "USD_TMN",
-                "USD_IRR"
-            ]
-        )
-
-        # ----------------------------------------------------
-        # FIND USDT
-        # ----------------------------------------------------
-
-        usdt = find_symbol(
-            currency,
-            [
-                "USDT",
-                "USDT_TMN",
-                "USDT_IRR"
-            ]
-        )
-
-        # ----------------------------------------------------
-        # FIND GOLD
-        # ----------------------------------------------------
-
-        gold = find_symbol(
-            gold_list,
-            [
-                "IR_GOLD_18K",
-                "GOLD_18K",
-                "GOLD18",
-                "18K"
-            ]
-        )
-
-        # ----------------------------------------------------
-        # PRINT FOUND ITEMS
-        # ----------------------------------------------------
-
-        print("")
-        print("BRS USD ITEM:")
-        print(
-            json.dumps(
-                usd,
-                ensure_ascii=False,
-                indent=4
-            )
-            if usd
-            else "NOT FOUND"
-        )
-
-        print("")
-        print("BRS USDT ITEM:")
-        print(
-            json.dumps(
-                usdt,
-                ensure_ascii=False,
-                indent=4
-            )
-            if usdt
-            else "NOT FOUND"
-        )
-
-        print("")
-        print("BRS GOLD ITEM:")
-        print(
-            json.dumps(
-                gold,
-                ensure_ascii=False,
-                indent=4
-            )
-            if gold
-            else "NOT FOUND"
-        )
-
-        # ----------------------------------------------------
-        # VALIDATION
-        # ----------------------------------------------------
-
-        if not usd:
-
-            print(
-                "WARNING: USD symbol not found"
-            )
-
-        if not usdt:
-
-            print(
-                "WARNING: USDT symbol not found"
-            )
-
-        if not gold:
-
-            print(
-                "WARNING: GOLD symbol not found"
-            )
 
         # ----------------------------------------------------
         # USD
         # ----------------------------------------------------
 
-        if usd:
+        usd_data = data.get(
+            "usd_sell"
+        )
 
-            usd_price = safe_int(
-                usd.get("price"),
+        if isinstance(
+            usd_data,
+            dict
+        ):
+
+            usd = safe_int(
+                usd_data.get(
+                    "value"
+                ),
                 0
             )
 
-        else:
-
-            usd_price = old_usd
-
-        # ----------------------------------------------------
-        # USDT
-        # ----------------------------------------------------
-
-        if usdt:
-
-            usdt_price = safe_int(
-                usdt.get("price"),
+            usd_change = safe_int(
+                usd_data.get(
+                    "change"
+                ),
                 0
             )
 
-        else:
-
-            usdt_price = old_usdt
-
-        # ----------------------------------------------------
-        # GOLD
-        # ----------------------------------------------------
-
-        if gold:
-
-            gold_price = safe_int(
-                gold.get("price"),
-                0
-            )
-
-            gold_change = gold.get(
-                "change_percent",
-                0
-            )
-
-            gold_date = gold.get(
+            usd_date = usd_data.get(
                 "date",
                 ""
             )
 
-            gold_time = gold.get(
-                "time",
+        else:
+
+            usd = 0
+            usd_change = 0
+            usd_date = ""
+
+        # ----------------------------------------------------
+        # GOLD 18K
+        # ----------------------------------------------------
+
+        gold_data = data.get(
+            "18ayar"
+        )
+
+        if isinstance(
+            gold_data,
+            dict
+        ):
+
+            gold = safe_int(
+                gold_data.get(
+                    "value"
+                ),
+                0
+            )
+
+            gold_change = safe_int(
+                gold_data.get(
+                    "change"
+                ),
+                0
+            )
+
+            gold_date = gold_data.get(
+                "date",
                 ""
             )
 
         else:
 
-            gold_price = old_gold
+            gold = 0
             gold_change = 0
             gold_date = ""
-            gold_time = ""
 
         # ----------------------------------------------------
-        # CHECK VALID VALUES
+        # BTC
         # ----------------------------------------------------
 
-        if usd_price <= 0:
+        btc_data = data.get(
+            "btc"
+        )
 
-            print(
-                "WARNING: Invalid USD price. "
-                "Using old value."
+        if isinstance(
+            btc_data,
+            dict
+        ):
+
+            btc = safe_int(
+                btc_data.get(
+                    "value"
+                ),
+                0
             )
 
-            usd_price = old_usd
-
-        if usdt_price <= 0:
-
-            print(
-                "WARNING: Invalid USDT price. "
-                "Using old value."
+            btc_change = safe_int(
+                btc_data.get(
+                    "change"
+                ),
+                0
             )
 
-            usdt_price = old_usdt
-
-        if gold_price <= 0:
-
-            print(
-                "WARNING: Invalid GOLD price. "
-                "Using old value."
+            btc_date = btc_data.get(
+                "date",
+                ""
             )
 
-            gold_price = old_gold
+        else:
+
+            btc = 0
+            btc_change = 0
+            btc_date = ""
 
         # ----------------------------------------------------
-        # SUCCESS
+        # VALIDATE USD
+        # ----------------------------------------------------
+
+        if usd <= 0:
+
+            print(
+                "Navasan USD invalid."
+                " Using old value."
+            )
+
+            usd = old_usd
+
+        # ----------------------------------------------------
+        # VALIDATE GOLD
+        # ----------------------------------------------------
+
+        if gold <= 0:
+
+            print(
+                "Navasan GOLD invalid."
+                " Using old value."
+            )
+
+            gold = old_gold
+
+        # ----------------------------------------------------
+        # VALIDATE BTC
+        # ----------------------------------------------------
+
+        if btc <= 0:
+
+            print(
+                "Navasan BTC unavailable."
+                " CoinGecko will be used."
+            )
+
+            btc = old_btc
+
+        # ----------------------------------------------------
+        # GOLD PERCENT
+        # ----------------------------------------------------
+
+        if gold > 0:
+
+            gold_percent = calculate_percent(
+                gold,
+                gold_change
+            )
+
+        else:
+
+            gold_percent = 0
+
+        # ----------------------------------------------------
+        # OUTPUT
         # ----------------------------------------------------
 
         print("")
-        print("BRS FINAL VALUES")
-        print("----------------")
-        print("USD :", usd_price)
-        print("USDT:", usdt_price)
-        print("GOLD:", gold_price)
-        print("")
+        print(
+            "NAVASAN FINAL VALUES"
+        )
+
+        print(
+            "USD :",
+            usd
+        )
+
+        print(
+            "GOLD:",
+            gold
+        )
+
+        print(
+            "BTC :",
+            btc
+        )
+
+        print(
+            "GOLD %:",
+            gold_percent
+        )
 
         return {
 
-            "usd": usd_price,
+            "usd": usd,
 
-            "usdt": usdt_price,
+            "usd_change": usd_change,
+
+            "usd_date": usd_date,
 
             "gold": {
 
-                "price": gold_price,
+                "price": gold,
 
-                "change_percent": gold_change,
+                "change": gold_change,
 
-                "date": gold_date,
+                "change_percent":
+                    gold_percent,
 
-                "time": gold_time
+                "date": gold_date
 
-            }
+            },
+
+            "btc": btc,
+
+            "btc_change": btc_change,
+
+            "btc_date": btc_date,
+
+            "success": True
 
         }
 
     except Exception as e:
 
         print("")
-        print("=" * 60)
-        print("BRS ERROR")
-        print("=" * 60)
-        print(repr(e))
-        print("=" * 60)
-        print("")
+        print(
+            "=" * 60
+        )
 
         print(
-            "Using previous BRS values..."
+            "NAVASAN MARKET ERROR"
+        )
+
+        print(
+            "=" * 60
+        )
+
+        print(
+            repr(e)
+        )
+
+        print(
+            "=" * 60
         )
 
         return {
 
             "usd": old_usd,
 
-            "usdt": old_usdt,
+            "usd_change": 0,
+
+            "usd_date": "",
 
             "gold": {
 
                 "price": old_gold,
 
+                "change": 0,
+
                 "change_percent": 0,
 
-                "date": "",
+                "date": ""
 
-                "time": ""
+            },
 
-            }
+            "btc": old_btc,
+
+            "btc_change": 0,
+
+            "btc_date": "",
+
+            "success": False
 
         }
 
 
 # ============================================================
-# BTC
+# BRS BACKUP
+# USD + GOLD ONLY
 # ============================================================
 
-def get_btc():
+def get_brs_backup():
 
     old = load_old()
 
-    old_btc = (
+    old_usd = safe_int(
+        old
+        .get("iran", {})
+        .get("usd", 0)
+    )
+
+    old_gold = safe_int(
+        old
+        .get("iran", {})
+        .get("gold18", 0)
+    )
+
+    # --------------------------------------------------------
+    # اگر BRS KEY نداریم
+    # --------------------------------------------------------
+
+    if not BRS_API_KEY:
+
+        print(
+            "BRS backup disabled."
+        )
+
+        return {
+
+            "usd": old_usd,
+
+            "gold": old_gold,
+
+            "success": False
+
+        }
+
+    # --------------------------------------------------------
+    # REQUEST
+    # --------------------------------------------------------
+
+    for attempt in range(
+        1,
+        MAX_RETRIES + 1
+    ):
+
+        try:
+
+            print(
+                f"BRS backup attempt "
+                f"{attempt}/{MAX_RETRIES}"
+            )
+
+            response = requests.get(
+
+                BRS_URL,
+
+                params={
+                    "key":
+                        BRS_API_KEY
+                },
+
+                headers=HEADERS,
+
+                timeout=(
+                    10,
+                    25
+                )
+            )
+
+            print(
+                "BRS STATUS:",
+                response.status_code
+            )
+
+            response.raise_for_status()
+
+            data = response.json()
+
+            if not isinstance(
+                data,
+                dict
+            ):
+
+                raise Exception(
+                    "BRS response is invalid"
+                )
+
+            # ------------------------------------------------
+            # GET LISTS
+            # ------------------------------------------------
+
+            currency = data.get(
+                "currency",
+                []
+            )
+
+            gold_list = data.get(
+                "gold",
+                []
+            )
+
+            # ------------------------------------------------
+            # Nested data support
+            # ------------------------------------------------
+
+            if (
+                not isinstance(
+                    currency,
+                    list
+                )
+                and isinstance(
+                    data.get("data"),
+                    dict
+                )
+            ):
+
+                nested = data["data"]
+
+                currency = nested.get(
+                    "currency",
+                    []
+                )
+
+                gold_list = nested.get(
+                    "gold",
+                    []
+                )
+
+            # ------------------------------------------------
+            # USD
+            # ------------------------------------------------
+
+            usd_item = find_symbol(
+
+                currency,
+
+                [
+                    "USD",
+                    "USD_TMN",
+                    "USD_IRR"
+                ]
+
+            )
+
+            # ------------------------------------------------
+            # GOLD
+            # ------------------------------------------------
+
+            gold_item = find_symbol(
+
+                gold_list,
+
+                [
+                    "IR_GOLD_18K",
+                    "GOLD_18K",
+                    "GOLD18",
+                    "18K"
+                ]
+
+            )
+
+            usd = 0
+            gold = 0
+
+            # ------------------------------------------------
+            # USD PRICE
+            # ------------------------------------------------
+
+            if usd_item:
+
+                usd = safe_int(
+                    usd_item.get(
+                        "price"
+                    ),
+                    0
+                )
+
+            # ------------------------------------------------
+            # GOLD PRICE
+            # ------------------------------------------------
+
+            if gold_item:
+
+                gold = safe_int(
+                    gold_item.get(
+                        "price"
+                    ),
+                    0
+                )
+
+            # ------------------------------------------------
+            # RESULT
+            # ------------------------------------------------
+
+            if usd <= 0:
+
+                usd = old_usd
+
+            if gold <= 0:
+
+                gold = old_gold
+
+            print("")
+            print(
+                "BRS BACKUP VALUES"
+            )
+
+            print(
+                "USD :",
+                usd
+            )
+
+            print(
+                "GOLD:",
+                gold
+            )
+
+            return {
+
+                "usd": usd,
+
+                "gold": gold,
+
+                "success": True
+
+            }
+
+        except Exception as e:
+
+            print(
+                "BRS BACKUP ERROR:",
+                repr(e)
+            )
+
+            if attempt < MAX_RETRIES:
+
+                time.sleep(
+                    RETRY_DELAY
+                )
+
+    # --------------------------------------------------------
+    # BRS FAILED
+    # --------------------------------------------------------
+
+    print(
+        "BRS backup unavailable."
+    )
+
+    return {
+
+        "usd": old_usd,
+
+        "gold": old_gold,
+
+        "success": False
+
+    }
+
+
+# ============================================================
+# COINGECKO BTC BACKUP
+# ============================================================
+
+def get_coingecko_btc():
+
+    old = load_old()
+
+    old_btc = safe_int(
         old
         .get("crypto", {})
         .get("btc", 0)
     )
 
-    try:
+    print("")
+    print(
+        "Connecting to CoinGecko..."
+    )
 
-        print("Connecting to CoinGecko...")
+    for attempt in range(
+        1,
+        MAX_RETRIES + 1
+    ):
 
-        response = requests.get(
-            BTC_URL,
-            headers=HEADERS,
-            timeout=20
-        )
-
-        print(
-            "BTC STATUS:",
-            response.status_code
-        )
-
-        if response.status_code == 429:
+        try:
 
             print(
-                "BTC rate limited"
+                f"CoinGecko attempt "
+                f"{attempt}/{MAX_RETRIES}"
             )
 
-            return old_btc
+            response = requests.get(
 
-        response.raise_for_status()
+                BTC_URL,
 
-        data = response.json()
+                headers=HEADERS,
 
-        btc = safe_int(
-            data
-            .get("bitcoin", {})
-            .get("usd"),
-            0
-        )
+                timeout=(
+                    10,
+                    20
+                )
 
-        if btc <= 0:
+            )
 
             print(
-                "BTC invalid response"
+                "COINGECKO STATUS:",
+                response.status_code
             )
 
-            return old_btc
+            if response.status_code == 429:
 
-        return btc
+                print(
+                    "CoinGecko rate limited."
+                )
 
-    except Exception as e:
+                break
 
-        print(
-            "BTC ERROR:",
-            repr(e)
-        )
+            response.raise_for_status()
 
-        return old_btc
+            data = response.json()
+
+            btc = safe_int(
+
+                data
+                .get("bitcoin", {})
+                .get("usd"),
+
+                0
+
+            )
+
+            if btc > 0:
+
+                print(
+                    "CoinGecko BTC:",
+                    btc
+                )
+
+                return btc
+
+        except Exception as e:
+
+            print(
+                "COINGECKO ERROR:",
+                repr(e)
+            )
+
+        if attempt < MAX_RETRIES:
+
+            time.sleep(
+                RETRY_DELAY
+            )
+
+    print(
+        "CoinGecko unavailable."
+        " Using previous BTC."
+    )
+
+    return old_btc
 
 
 # ============================================================
 # CHANGE
 # ============================================================
 
-def calc_change(new, old):
+def calc_change(
+    new,
+    old
+):
 
     if old is None:
         return 0
 
     try:
 
-        return new - old
+        return (
+            new - old
+        )
 
     except Exception:
 
@@ -708,12 +1173,21 @@ def push_github():
     try:
 
         print("")
-        print("Connecting to GitHub...")
+        print(
+            "Connecting to GitHub..."
+        )
 
         old_file = requests.get(
+
             url,
+
             headers=headers,
-            timeout=20
+
+            timeout=(
+                10,
+                20
+            )
+
         )
 
         print(
@@ -743,7 +1217,11 @@ def push_github():
 
             try:
 
-                sha = old_file.json()["sha"]
+                sha = (
+                    old_file
+                    .json()
+                    .get("sha")
+                )
 
             except Exception as e:
 
@@ -759,9 +1237,13 @@ def push_github():
         # ----------------------------------------------------
 
         with open(
+
             DATA_FILE,
+
             "r",
+
             encoding="utf-8"
+
         ) as f:
 
             content = f.read()
@@ -777,8 +1259,12 @@ def push_github():
 
             "content":
                 base64.b64encode(
-                    content.encode("utf-8")
-                ).decode("utf-8")
+                    content.encode(
+                        "utf-8"
+                    )
+                ).decode(
+                    "utf-8"
+                )
 
         }
 
@@ -791,10 +1277,18 @@ def push_github():
         # ----------------------------------------------------
 
         response = requests.put(
+
             url,
+
             headers=headers,
+
             json=payload,
-            timeout=20
+
+            timeout=(
+                10,
+                20
+            )
+
         )
 
         print(
@@ -839,10 +1333,17 @@ def push_github():
 # ============================================================
 
 print("")
-print("=" * 60)
-print("MARKET UPDATE STARTED")
-print("=" * 60)
-print("")
+print(
+    "=" * 60
+)
+
+print(
+    "MARKET UPDATE STARTED"
+)
+
+print(
+    "=" * 60
+)
 
 
 # ============================================================
@@ -863,39 +1364,226 @@ old_crypto = old.get(
 
 
 # ============================================================
-# BRS
+# NAVASAN PRIMARY
 # ============================================================
 
-brs = get_brs_market()
+navasan = get_navasan_market()
 
-usd = brs["usd"]
 
-usdt = brs["usdt"]
+# ============================================================
+# INITIAL VALUES FROM NAVASAN
+# ============================================================
 
-gold = brs["gold"]
+usd = navasan["usd"]
 
-gold_price = safe_int(
-    gold.get("price"),
-    0
+gold = navasan["gold"]
+
+btc = navasan["btc"]
+
+
+usd_source = (
+    "Navasan"
+    if navasan["success"]
+    else "Previous data"
+)
+
+gold_source = (
+    "Navasan"
+    if navasan["success"]
+    else "Previous data"
+)
+
+btc_source = (
+    "Navasan"
+    if navasan["success"]
+    else "Previous data"
 )
 
 
-print("")
-print("FINAL USD :", usd)
-print("FINAL USDT:", usdt)
-print("FINAL GOLD:", gold_price)
+# ============================================================
+# BRS FALLBACK
+# ============================================================
+
+# اگر Navasan دلار یا طلا را نداد،
+# BRS فقط همان موارد را تأمین می‌کند.
+
+if (
+    usd <= 0
+    or gold <= 0
+):
+
+    print("")
+    print(
+        "Navasan USD/GOLD incomplete."
+    )
+
+    print(
+        "Trying BRS backup..."
+    )
+
+    brs = get_brs_backup()
+
+    if usd <= 0 and brs["usd"] > 0:
+
+        usd = brs["usd"]
+
+        usd_source = "BRS Backup"
+
+    if gold <= 0 and brs["gold"] > 0:
+
+        gold = brs["gold"]
+
+        gold_source = "BRS Backup"
 
 
 # ============================================================
-# BTC
+# BTC COINGECKO FALLBACK
 # ============================================================
 
-btc = get_btc()
+if btc <= 0:
 
-print(
-    "FINAL BTC :",
-    btc
+    print("")
+    print(
+        "Navasan BTC unavailable."
+    )
+
+    print(
+        "Trying CoinGecko backup..."
+    )
+
+    btc = get_coingecko_btc()
+
+    btc_source = (
+        "CoinGecko Backup"
+    )
+
+
+# ============================================================
+# ABSOLUTE SAFETY
+# ============================================================
+
+if usd <= 0:
+
+    usd = safe_int(
+        old_iran.get(
+            "usd"
+        ),
+        0
+    )
+
+    usd_source = (
+        "Previous data"
+    )
+
+
+if gold <= 0:
+
+    gold = safe_int(
+        old_iran.get(
+            "gold18"
+        ),
+        0
+    )
+
+    gold_source = (
+        "Previous data"
+    )
+
+
+if btc <= 0:
+
+    btc = safe_int(
+        old_crypto.get(
+            "btc"
+        ),
+        0
+    )
+
+    btc_source = (
+        "Previous data"
+    )
+
+
+# ============================================================
+# CHANGES
+# ============================================================
+
+usd_change = calc_change(
+
+    usd,
+
+    old_iran.get(
+        "usd"
+    )
+
 )
+
+
+gold_change = calc_change(
+
+    gold,
+
+    old_iran.get(
+        "gold18"
+    )
+
+)
+
+
+btc_change = calc_change(
+
+    btc,
+
+    old_crypto.get(
+        "btc"
+    )
+
+)
+
+
+# ============================================================
+# GOLD PERCENT
+# ============================================================
+
+if navasan["success"]:
+
+    gold_percent = navasan[
+        "gold"
+    ].get(
+        "change_percent",
+        0
+    )
+
+else:
+
+    old_gold_percent = (
+        old_iran
+        .get(
+            "gold18_percent",
+            0
+        )
+    )
+
+    gold_percent = old_gold_percent
+
+
+# ============================================================
+# UPDATE DATE / TIME
+# ============================================================
+
+gold_date = (
+    navasan["gold"]
+    .get(
+        "date",
+        ""
+    )
+)
+
+if not gold_date:
+
+    gold_date = datetime.now().strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
 
 
 # ============================================================
@@ -908,55 +1596,39 @@ market = {
 
         "usd": usd,
 
-        "usd_change": calc_change(
-            usd,
-            old_iran.get("usd")
-        ),
+        "usd_change":
+            usd_change,
 
-        "gold18": gold_price,
+        "gold18":
+            gold,
 
-        "gold18_change": calc_change(
-            gold_price,
-            old_iran.get("gold18")
-        ),
+        "gold18_change":
+            gold_change,
 
         "gold18_percent":
-            gold.get(
-                "change_percent",
-                0
-            )
+            gold_percent
 
     },
 
     "crypto": {
 
-        "btc": btc,
-
-        "btc_change": calc_change(
+        "btc":
             btc,
-            old_crypto.get("btc")
-        ),
 
-        "usdt": usdt,
-
-        "usdt_change": calc_change(
-            usdt,
-            old_crypto.get("usdt")
-        )
+        "btc_change":
+            btc_change
 
     },
 
     "gold_update": {
 
         "date":
-            gold.get(
-                "date",
-                ""
-            ),
+            gold_date,
 
         "time":
-            gold.get(
-                "time",
+            navasan["gold"]
+            .get(
+                "date",
                 ""
             )
 
@@ -965,19 +1637,40 @@ market = {
     "updated":
         datetime.now().strftime(
             "%Y-%m-%d %H:%M:%S"
-        )
+        ),
+
+    "sources": {
+
+        "usd":
+            usd_source,
+
+        "gold18":
+            gold_source,
+
+        "btc":
+            btc_source
+
+    }
 
 }
 
 
 # ============================================================
-# PRINT FINAL JSON
+# PRINT FINAL MARKET
 # ============================================================
 
 print("")
-print("=" * 60)
-print("FINAL MARKET JSON")
-print("=" * 60)
+print(
+    "=" * 60
+)
+
+print(
+    "FINAL MARKET JSON"
+)
+
+print(
+    "=" * 60
+)
 
 print(
     json.dumps(
@@ -987,7 +1680,9 @@ print(
     )
 )
 
-print("=" * 60)
+print(
+    "=" * 60
+)
 
 
 # ============================================================
@@ -997,16 +1692,25 @@ print("=" * 60)
 try:
 
     with open(
+
         DATA_FILE,
+
         "w",
+
         encoding="utf-8"
+
     ) as f:
 
         json.dump(
+
             market,
+
             f,
+
             ensure_ascii=False,
+
             indent=4
+
         )
 
     print(
@@ -1035,7 +1739,9 @@ github_ok = push_github()
 # ============================================================
 
 print("")
-print("=" * 60)
+print(
+    "=" * 60
+)
 
 if github_ok:
 
@@ -1053,6 +1759,9 @@ else:
         "BUT GITHUB UPDATE FAILED"
     )
 
-print("=" * 60)
+print(
+    "=" * 60
+)
+
 
 
